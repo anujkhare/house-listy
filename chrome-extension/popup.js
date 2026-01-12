@@ -74,26 +74,41 @@ function displayDataPreview(data) {
 sendBtn.addEventListener('click', async () => {
   if (!extractedData) return;
 
-  // Save to Chrome storage so app can pick it up
-  chrome.storage.local.set({ pendingListing: extractedData }, async () => {
-    success.textContent = '✅ Data saved! Opening app...';
-    success.classList.remove('hidden');
+  success.textContent = '✅ Sending to app...';
+  success.classList.remove('hidden');
 
-    // Find or open the app
-    const tabs = await chrome.tabs.query({ url: 'http://localhost:3000/*' });
+  // Find or open the app
+  const tabs = await chrome.tabs.query({ url: 'http://localhost:3000/*' });
 
-    if (tabs.length > 0) {
-      // App is open, reload it to pick up the data
-      chrome.tabs.reload(tabs[0].id);
-      chrome.tabs.update(tabs[0].id, { active: true });
-    } else {
-      // Open the app
-      chrome.tabs.create({ url: 'http://localhost:3000' });
-    }
+  if (tabs.length > 0) {
+    // App is already open - send message directly to the bridge content script
+    chrome.tabs.sendMessage(tabs[0].id, {
+      action: 'sendListingData',
+      data: extractedData
+    }, (response) => {
+      if (chrome.runtime.lastError) {
+        console.error('Error sending message:', chrome.runtime.lastError);
+        // Fallback: save to storage and reload
+        chrome.storage.local.set({ pendingListing: extractedData }, () => {
+          chrome.tabs.reload(tabs[0].id);
+          chrome.tabs.update(tabs[0].id, { active: true });
+        });
+      } else {
+        chrome.tabs.update(tabs[0].id, { active: true });
+      }
+    });
 
     // Close popup after 1 second
     setTimeout(() => window.close(), 1000);
-  });
+  } else {
+    // App is not open - save to storage and open new tab
+    chrome.storage.local.set({ pendingListing: extractedData }, () => {
+      chrome.tabs.create({ url: 'http://localhost:3000' });
+
+      // Close popup after 1 second
+      setTimeout(() => window.close(), 1000);
+    });
+  }
 });
 
 // Copy to clipboard

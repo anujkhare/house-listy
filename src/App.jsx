@@ -50,39 +50,33 @@ export default function HouseHuntingTracker() {
         console.log('No existing listings found');
       }
       setIsLoading(false);
-
-      // Check for pending listing from Chrome extension
-      checkForExtensionData();
     };
     loadListings();
   }, []);
 
-  // Check for data from Chrome extension
-  const checkForExtensionData = async () => {
-    if (typeof chrome !== 'undefined' && chrome.storage) {
-      try {
-        chrome.storage.local.get(['pendingListing'], (result) => {
-          if (result.pendingListing) {
-            console.log('Found pending listing from extension:', result.pendingListing);
-            // Pre-fill the add modal with extension data
-            setShowAddModal(true);
-            // Clear the pending data
-            chrome.storage.local.remove(['pendingListing']);
+  // Listen for data from Chrome extension via bridge content script
+  useEffect(() => {
+    const handleExtensionMessage = (event) => {
+      // Only accept messages from our extension
+      if (event.data && event.data.source === 'house-hunter-extension') {
+        console.log('App received data from extension:', event.data.payload);
 
-            // Auto-fill the form after modal opens
-            setTimeout(() => {
-              const event = new CustomEvent('extensionData', {
-                detail: result.pendingListing
-              });
-              window.dispatchEvent(event);
-            }, 100);
-          }
-        });
-      } catch (error) {
-        console.log('Chrome extension not available or no pending data');
+        // Open the add modal with the extension data
+        setShowAddModal(true);
+
+        // Auto-fill the form after modal opens
+        setTimeout(() => {
+          const customEvent = new CustomEvent('extensionData', {
+            detail: event.data.payload
+          });
+          window.dispatchEvent(customEvent);
+        }, 100);
       }
-    }
-  };
+    };
+
+    window.addEventListener('message', handleExtensionMessage);
+    return () => window.removeEventListener('message', handleExtensionMessage);
+  }, []);
 
   // Save listings to storage
   useEffect(() => {

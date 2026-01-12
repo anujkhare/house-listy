@@ -25,6 +25,11 @@
       "matches": ["https://*.zillow.com/homedetails/*"],
       "js": ["content.js"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": ["http://localhost:3000/*"],
+      "js": ["app-bridge.js"],
+      "run_at": "document_start"
     }
   ],
   "background": {
