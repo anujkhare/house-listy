@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MapPin, Home, Plus, X, Eye, EyeOff, Star, Filter, List, Map as MapIcon, Edit2, Trash2, ExternalLink, Check, AlertCircle, Heart, ThumbsDown, XCircle } from 'lucide-react';
+import './storage';
 
 // Geocoding function using Nominatim (free, no API key)
 const geocodeAddress = async (address) => {
