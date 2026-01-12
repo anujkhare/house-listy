@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Generate Extension Icons</title>
+</head>
+<body>
+  <h2>Generating Extension Icons...</h2>
+  <canvas id="canvas"></canvas>
+  <div id="status"></div>
+
+  <script>
+    const sizes = [16, 48, 128];
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    sizes.forEach(size => {
+      canvas.width = size;
+      canvas.height = size;
+
+      // Draw blue background
+      ctx.fillStyle = '#3b82f6';
+      ctx.fillRect(0, 0, size, size);
+
+      // Draw house icon
+      ctx.fillStyle = 'white';
+      ctx.beginPath();
+      // Simple house shape
+      const scale = size / 128;
+      ctx.moveTo(size * 0.5, size * 0.2);
+      ctx.lineTo(size * 0.2, size * 0.45);
+      ctx.lineTo(size * 0.2, size * 0.85);
+      ctx.lineTo(size * 0.4, size * 0.85);
+      ctx.lineTo(size * 0.4, size * 0.6);
+      ctx.lineTo(size * 0.6, size * 0.6);
+      ctx.lineTo(size * 0.6, size * 0.85);
+      ctx.lineTo(size * 0.8, size * 0.85);
+      ctx.lineTo(size * 0.8, size * 0.45);
+      ctx.closePath();
+      ctx.fill();
+
+      // Download
+      canvas.toBlob(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `icon${size}.png`;
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+    });
+
+    document.getElementById('status').innerHTML =
+      '<p style="color: green;">✓ Downloaded icon16.png, icon48.png, and icon128.png</p>' +
+      '<p>Move these files to the chrome-extension folder</p>';
+  </script>
+</body>
+</html>

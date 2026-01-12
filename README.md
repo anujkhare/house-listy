@@ -95,19 +95,35 @@ npm run preview
 
 4. Click "Add Listing" - the address will be automatically geocoded and plotted on the map
 
-### How Auto-fill Works (CORS Solution)
+### Auto-fill Methods
 
-The auto-fill feature uses a **local proxy server** to bypass browser CORS restrictions:
+We provide **two ways** to auto-fill Zillow data:
 
-- **The Problem**: Browsers block direct requests to Zillow due to CORS (Cross-Origin Resource Sharing) security
-- **The Solution**: Our Node.js proxy server (`server.js`) fetches Zillow pages on your behalf
-- **Privacy**: Everything runs locally on your machine - no data is sent to external services
-- **How it works**:
-  1. You paste a Zillow URL
-  2. Your browser sends the URL to the local proxy server (port 3001)
-  3. The proxy server fetches the Zillow page (not blocked by CORS)
-  4. The proxy extracts property data and sends it back
-  5. The form auto-fills with the extracted data
+#### Method 1: Chrome Extension (Recommended - Works with Zillow login)
+
+**Best for:** Actually using the app for house hunting
+
+1. **Install the Chrome extension** (one-time setup):
+   - Follow instructions in `chrome-extension/README.md`
+   - Takes 2 minutes to install
+
+2. **Extract data from Zillow:**
+   - Browse to any Zillow listing while logged in
+   - Click the extension icon 🏠
+   - Click "Extract Data" → "Send to App"
+   - App opens with pre-filled data!
+
+**Why it works:** Runs in your browser with your Zillow login, bypasses bot detection
+
+#### Method 2: Proxy Server (May fail with 403 errors)
+
+**Best for:** Testing when not logged into Zillow
+
+1. Make sure proxy server is running (`npm start` runs both)
+2. Paste Zillow URL in the form
+3. Click "Auto-fill" button
+
+**Note:** This method often gets blocked by Zillow's bot protection (403 errors). Use the Chrome extension for reliable extraction.
 
 ### After Viewing a Property
 

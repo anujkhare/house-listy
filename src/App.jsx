@@ -50,9 +50,39 @@ export default function HouseHuntingTracker() {
         console.log('No existing listings found');
       }
       setIsLoading(false);
+
+      // Check for pending listing from Chrome extension
+      checkForExtensionData();
     };
     loadListings();
   }, []);
+
+  // Check for data from Chrome extension
+  const checkForExtensionData = async () => {
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      try {
+        chrome.storage.local.get(['pendingListing'], (result) => {
+          if (result.pendingListing) {
+            console.log('Found pending listing from extension:', result.pendingListing);
+            // Pre-fill the add modal with extension data
+            setShowAddModal(true);
+            // Clear the pending data
+            chrome.storage.local.remove(['pendingListing']);
+
+            // Auto-fill the form after modal opens
+            setTimeout(() => {
+              const event = new CustomEvent('extensionData', {
+                detail: result.pendingListing
+              });
+              window.dispatchEvent(event);
+            }, 100);
+          }
+        });
+      } catch (error) {
+        console.log('Chrome extension not available or no pending data');
+      }
+    }
+  };
 
   // Save listings to storage
   useEffect(() => {
@@ -562,6 +592,27 @@ function AddListingModal({ onClose, onAdd }) {
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
   const [fetchError, setFetchError] = useState(null);
+
+  // Listen for data from Chrome extension
+  useEffect(() => {
+    const handleExtensionData = (event) => {
+      const data = event.detail;
+      console.log('Received extension data in modal:', data);
+
+      setFormData(prev => ({
+        ...prev,
+        address: data.address || prev.address,
+        price: data.price || prev.price,
+        beds: data.beds || prev.beds,
+        baths: data.baths || prev.baths,
+        sqft: data.sqft || prev.sqft,
+        zillowUrl: data.url || prev.zillowUrl,
+      }));
+    };
+
+    window.addEventListener('extensionData', handleExtensionData);
+    return () => window.removeEventListener('extensionData', handleExtensionData);
+  }, []);
 
   const handleAutoFill = async () => {
     if (!formData.zillowUrl) {

@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      width: 350px;
+      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      margin: 0;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .logo {
+      width: 32px;
+      height: 32px;
+      background: #3b82f6;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 20px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+      color: #111827;
+    }
+
+    .status {
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      font-size: 14px;
+    }
+
+    .status.success {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .status.error {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .status.info {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+
+    .data-preview {
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 16px;
+      font-size: 13px;
+    }
+
+    .data-preview .field {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .data-preview .label {
+      font-weight: 500;
+      color: #6b7280;
+    }
+
+    .data-preview .value {
+      color: #111827;
+      font-weight: 600;
+    }
+
+    button {
+      width: 100%;
+      padding: 10px 16px;
+      background: #3b82f6;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      margin-bottom: 8px;
+    }
+
+    button:hover {
+      background: #2563eb;
+    }
+
+    button:disabled {
+      background: #9ca3af;
+      cursor: not-allowed;
+    }
+
+    button.secondary {
+      background: white;
+      color: #374151;
+      border: 1px solid #d1d5db;
+    }
+
+    button.secondary:hover {
+      background: #f9fafb;
+    }
+
+    .instructions {
+      font-size: 12px;
+      color: #6b7280;
+      line-height: 1.5;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #e5e7eb;
+    }
+
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">🏠</div>
+    <h1>SF House Hunter</h1>
+  </div>
+
+  <div id="notZillow" class="status error hidden">
+    ⚠️ Please navigate to a Zillow listing page first
+  </div>
+
+  <div id="loading" class="status info hidden">
+    🔍 Extracting listing data...
+  </div>
+
+  <div id="success" class="status success hidden">
+    ✅ Data extracted successfully!
+  </div>
+
+  <div id="dataPreview" class="data-preview hidden"></div>
+
+  <button id="extractBtn">Extract Data from This Page</button>
+  <button id="sendBtn" class="secondary" disabled>Send to House Tracker App</button>
+  <button id="copyBtn" class="secondary" disabled>Copy Data to Clipboard</button>
+
+  <div class="instructions">
+    <strong>How to use:</strong><br>
+    1. Navigate to a Zillow listing page<br>
+    2. Click "Extract Data from This Page"<br>
+    3. Click "Send to House Tracker App" (make sure app is open at localhost:3000)<br>
+    <br>
+    Or copy the data to manually paste into the app.
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
