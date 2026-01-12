@@ -20,6 +20,11 @@ function extractListingData() {
     dateOnMarket: null,
     listingAgreement: null,
     listingTerms: null,
+    lotSize: null,
+    totalSpaces: null,
+    garageSpaces: null,
+    homeType: null,
+    yearBuilt: null,
     timestamp: new Date().toISOString()
   };
 
@@ -137,69 +142,108 @@ function extractListingData() {
       }
     }
 
-    // Extract Financial & listing details
-    // Find the category-group div with "Financial & listing details" text
+    // Extract data from category-group sections
+    // Find all category-group divs
     const categoryGroups = document.querySelectorAll('[data-testid="category-group"]');
 
     for (const group of categoryGroups) {
       const headingText = group.textContent;
 
+      // Get all child divs - the second one should contain the list
+      const childDivs = group.querySelectorAll(':scope > div');
+      if (childDivs.length < 2) continue;
+
+      const listContainer = childDivs[1];
+      const listText = listContainer.textContent;
+
+      // Extract Financial & listing details
       if (headingText.includes('Financial & listing details') || headingText.includes('Financial')) {
         console.log('Found Financial & listing details section');
+        console.log('Financial details text:', listText);
 
-        // Get all child divs - the second one should contain the list
-        const childDivs = group.querySelectorAll(':scope > div');
-
-        if (childDivs.length >= 2) {
-          const listContainer = childDivs[1];
-          const listText = listContainer.textContent;
-
-          console.log('Financial details text:', listText);
-
-          // Parse Price per square foot: $1,158/sqft
-          const pricePerSqftMatch = listText.match(/Price per square foot:\s*\$?([\d,]+)\/sqft/i);
-          if (pricePerSqftMatch) {
-            data.pricePerSqft = pricePerSqftMatch[1].replace(/,/g, '');
-          }
-
-          // Parse Tax assessed value: $901,127
-          const taxValueMatch = listText.match(/Tax assessed value:\s*\$?([\d,]+)/i);
-          if (taxValueMatch) {
-            data.taxAssessedValue = taxValueMatch[1].replace(/,/g, '');
-          }
-
-          // Parse Annual tax amount: $11,339
-          const annualTaxMatch = listText.match(/Annual tax amount:\s*\$?([\d,]+)/i);
-          if (annualTaxMatch) {
-            data.annualTaxAmount = annualTaxMatch[1].replace(/,/g, '');
-          }
-
-          // Parse Price range: $2M - $2M
-          const priceRangeMatch = listText.match(/Price range:\s*([^\n]+)/i);
-          if (priceRangeMatch) {
-            data.priceRange = priceRangeMatch[1].trim();
-          }
-
-          // Parse Date on market: 5/29/2025
-          const dateOnMarketMatch = listText.match(/Date on market:\s*([^\n]+)/i);
-          if (dateOnMarketMatch) {
-            data.dateOnMarket = dateOnMarketMatch[1].trim();
-          }
-
-          // Parse Listing agreement: Excl Right
-          const listingAgreementMatch = listText.match(/Listing agreement:\s*([^\n]+)/i);
-          if (listingAgreementMatch) {
-            data.listingAgreement = listingAgreementMatch[1].trim();
-          }
-
-          // Parse Listing terms: Cash,Conventional,Owner May Carry,Private Financing Available
-          const listingTermsMatch = listText.match(/Listing terms:\s*([^\n]+)/i);
-          if (listingTermsMatch) {
-            data.listingTerms = listingTermsMatch[1].trim();
-          }
+        // Parse Price per square foot: $1,158/sqft
+        const pricePerSqftMatch = listText.match(/Price per square foot:\s*\$?([\d,]+)\/sqft/i);
+        if (pricePerSqftMatch) {
+          data.pricePerSqft = pricePerSqftMatch[1].replace(/,/g, '');
         }
 
-        break; // Found the section, no need to continue
+        // Parse Tax assessed value: $901,127
+        const taxValueMatch = listText.match(/Tax assessed value:\s*\$?([\d,]+)/i);
+        if (taxValueMatch) {
+          data.taxAssessedValue = taxValueMatch[1].replace(/,/g, '');
+        }
+
+        // Parse Annual tax amount: $11,339
+        const annualTaxMatch = listText.match(/Annual tax amount:\s*\$?([\d,]+)/i);
+        if (annualTaxMatch) {
+          data.annualTaxAmount = annualTaxMatch[1].replace(/,/g, '');
+        }
+
+        // Parse Price range: $2M - $2M
+        const priceRangeMatch = listText.match(/Price range:\s*([^\n]+)/i);
+        if (priceRangeMatch) {
+          data.priceRange = priceRangeMatch[1].trim();
+        }
+
+        // Parse Date on market: 5/29/2025
+        const dateOnMarketMatch = listText.match(/Date on market:\s*([^\n]+)/i);
+        if (dateOnMarketMatch) {
+          data.dateOnMarket = dateOnMarketMatch[1].trim();
+        }
+
+        // Parse Listing agreement: Excl Right
+        const listingAgreementMatch = listText.match(/Listing agreement:\s*([^\n]+)/i);
+        if (listingAgreementMatch) {
+          data.listingAgreement = listingAgreementMatch[1].trim();
+        }
+
+        // Parse Listing terms: Cash,Conventional,Owner May Carry,Private Financing Available
+        const listingTermsMatch = listText.match(/Listing terms:\s*([^\n]+)/i);
+        if (listingTermsMatch) {
+          data.listingTerms = listingTermsMatch[1].trim();
+        }
+      }
+
+      // Extract Property details
+      if (headingText.includes('Property')) {
+        console.log('Found Property section');
+        console.log('Property details text:', listText);
+
+        // Parse Size (lot size): "Size: 2,500 sqft" or "Size: 0.25 acres"
+        const lotSizeMatch = listText.match(/Size:\s*([^\n]+)/i);
+        if (lotSizeMatch) {
+          data.lotSize = lotSizeMatch[1].trim();
+        }
+
+        // Parse Total spaces: "Total spaces: 2"
+        const totalSpacesMatch = listText.match(/Total spaces:\s*(\d+)/i);
+        if (totalSpacesMatch) {
+          data.totalSpaces = totalSpacesMatch[1];
+        }
+
+        // Parse Garage spaces: "Garage spaces: 2"
+        const garageSpacesMatch = listText.match(/[Gg]arage spaces:\s*(\d+)/i);
+        if (garageSpacesMatch) {
+          data.garageSpaces = garageSpacesMatch[1];
+        }
+      }
+
+      // Extract Construction details
+      if (headingText.includes('Construction')) {
+        console.log('Found Construction section');
+        console.log('Construction details text:', listText);
+
+        // Parse Home type: "Single Family Residence"
+        const homeTypeMatch = listText.match(/Home type:\s*([^\n]+)/i);
+        if (homeTypeMatch) {
+          data.homeType = homeTypeMatch[1].trim();
+        }
+
+        // Parse Year built: "1925"
+        const yearBuiltMatch = listText.match(/Year built:\s*(\d{4})/i);
+        if (yearBuiltMatch) {
+          data.yearBuilt = yearBuiltMatch[1];
+        }
       }
     }
 

@@ -393,6 +393,94 @@ function ListingDetail({ listing, onClose, onEdit, onDelete, onToggleVisited }) 
           </div>
         )}
 
+        {/* Additional Financial Details */}
+        {(listing.taxAssessedValue || listing.annualTaxAmount || listing.priceRange || listing.dateOnMarket || listing.listingAgreement || listing.listingTerms) && (
+          <div className="border-t pt-4">
+            <h4 className="text-sm font-semibold text-gray-700 mb-3">Financial & Listing Details</h4>
+            <div className="grid grid-cols-2 gap-3">
+              {listing.taxAssessedValue && (
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <div className="text-xs text-gray-500 uppercase tracking-wide">Tax Assessed</div>
+                  <div className="text-sm font-semibold text-gray-900">
+                    ${parseInt(listing.taxAssessedValue)?.toLocaleString() || listing.taxAssessedValue}
+                  </div>
+                </div>
+              )}
+              {listing.annualTaxAmount && (
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <div className="text-xs text-gray-500 uppercase tracking-wide">Annual Tax</div>
+                  <div className="text-sm font-semibold text-gray-900">
+                    ${parseInt(listing.annualTaxAmount)?.toLocaleString() || listing.annualTaxAmount}
+                  </div>
+                </div>
+              )}
+            </div>
+            {listing.priceRange && (
+              <div className="bg-gray-50 rounded-lg p-3 mt-3">
+                <div className="text-xs text-gray-500 uppercase tracking-wide">Price Range</div>
+                <div className="text-sm font-semibold text-gray-900">{listing.priceRange}</div>
+              </div>
+            )}
+            {listing.dateOnMarket && (
+              <div className="bg-gray-50 rounded-lg p-3 mt-3">
+                <div className="text-xs text-gray-500 uppercase tracking-wide">Date on Market</div>
+                <div className="text-sm font-semibold text-gray-900">{listing.dateOnMarket}</div>
+              </div>
+            )}
+            {listing.listingAgreement && (
+              <div className="bg-gray-50 rounded-lg p-3 mt-3">
+                <div className="text-xs text-gray-500 uppercase tracking-wide">Listing Agreement</div>
+                <div className="text-sm font-semibold text-gray-900">{listing.listingAgreement}</div>
+              </div>
+            )}
+            {listing.listingTerms && (
+              <div className="bg-gray-50 rounded-lg p-3 mt-3">
+                <div className="text-xs text-gray-500 uppercase tracking-wide">Listing Terms</div>
+                <div className="text-sm text-gray-900">{listing.listingTerms}</div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Property & Construction Details */}
+        {(listing.lotSize || listing.homeType || listing.yearBuilt || listing.totalSpaces || listing.garageSpaces) && (
+          <div className="border-t pt-4">
+            <h4 className="text-sm font-semibold text-gray-700 mb-3">Property Details</h4>
+            <div className="grid grid-cols-2 gap-3">
+              {listing.homeType && (
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <div className="text-xs text-gray-500 uppercase tracking-wide">Home Type</div>
+                  <div className="text-sm font-semibold text-gray-900">{listing.homeType}</div>
+                </div>
+              )}
+              {listing.yearBuilt && (
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <div className="text-xs text-gray-500 uppercase tracking-wide">Year Built</div>
+                  <div className="text-sm font-semibold text-gray-900">{listing.yearBuilt}</div>
+                </div>
+              )}
+              {listing.lotSize && (
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <div className="text-xs text-gray-500 uppercase tracking-wide">Lot Size</div>
+                  <div className="text-sm font-semibold text-gray-900">{listing.lotSize}</div>
+                </div>
+              )}
+              {listing.totalSpaces && (
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <div className="text-xs text-gray-500 uppercase tracking-wide">Total Spaces</div>
+                  <div className="text-sm font-semibold text-gray-900">{listing.totalSpaces}</div>
+                </div>
+              )}
+              {listing.garageSpaces && (
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <div className="text-xs text-gray-500 uppercase tracking-wide">Garage Spaces</div>
+                  <div className="text-sm font-semibold text-gray-900">{listing.garageSpaces}</div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {listing.zillowUrl && (
           <a 
             href={listing.zillowUrl} 
@@ -581,7 +669,19 @@ function AddListingModal({ onClose, onAdd }) {
     baths: '',
     sqft: '',
     zillowUrl: '',
-    notes: ''
+    notes: '',
+    pricePerSqft: '',
+    taxAssessedValue: '',
+    annualTaxAmount: '',
+    priceRange: '',
+    dateOnMarket: '',
+    listingAgreement: '',
+    listingTerms: '',
+    lotSize: '',
+    totalSpaces: '',
+    garageSpaces: '',
+    homeType: '',
+    yearBuilt: ''
   });
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
@@ -601,6 +701,18 @@ function AddListingModal({ onClose, onAdd }) {
         baths: data.baths || prev.baths,
         sqft: data.sqft || prev.sqft,
         zillowUrl: data.url || prev.zillowUrl,
+        pricePerSqft: data.pricePerSqft || prev.pricePerSqft,
+        taxAssessedValue: data.taxAssessedValue || prev.taxAssessedValue,
+        annualTaxAmount: data.annualTaxAmount || prev.annualTaxAmount,
+        priceRange: data.priceRange || prev.priceRange,
+        dateOnMarket: data.dateOnMarket || prev.dateOnMarket,
+        listingAgreement: data.listingAgreement || prev.listingAgreement,
+        listingTerms: data.listingTerms || prev.listingTerms,
+        lotSize: data.lotSize || prev.lotSize,
+        totalSpaces: data.totalSpaces || prev.totalSpaces,
+        garageSpaces: data.garageSpaces || prev.garageSpaces,
+        homeType: data.homeType || prev.homeType,
+        yearBuilt: data.yearBuilt || prev.yearBuilt,
       }));
     };
 
@@ -659,13 +771,23 @@ function AddListingModal({ onClose, onAdd }) {
     const priceNum = parseInt(formData.price.replace(/[^0-9]/g, ''));
     const sqftNum = parseInt(formData.sqft.replace(/[^0-9]/g, ''));
 
+    // Parse numeric values from the new fields
+    const pricePerSqftNum = formData.pricePerSqft ? parseInt(formData.pricePerSqft.replace(/[^0-9]/g, '')) : null;
+    const taxAssessedValueNum = formData.taxAssessedValue ? parseInt(formData.taxAssessedValue.replace(/[^0-9]/g, '')) : null;
+    const annualTaxAmountNum = formData.annualTaxAmount ? parseInt(formData.annualTaxAmount.replace(/[^0-9]/g, '')) : null;
+
     await onAdd({
       ...formData,
       price: priceNum || null,
       beds: parseInt(formData.beds) || null,
       baths: parseFloat(formData.baths) || null,
       sqft: sqftNum || null,
-      pricePerSqft: priceNum && sqftNum ? Math.round(priceNum / sqftNum) : null
+      pricePerSqft: pricePerSqftNum || (priceNum && sqftNum ? Math.round(priceNum / sqftNum) : null),
+      taxAssessedValue: taxAssessedValueNum,
+      annualTaxAmount: annualTaxAmountNum,
+      totalSpaces: formData.totalSpaces ? parseInt(formData.totalSpaces) : null,
+      garageSpaces: formData.garageSpaces ? parseInt(formData.garageSpaces) : null,
+      yearBuilt: formData.yearBuilt ? parseInt(formData.yearBuilt) : null,
     });
     setIsGeocoding(false);
   };
@@ -792,6 +914,141 @@ function AddListingModal({ onClose, onAdd }) {
               rows={3}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
+          </div>
+
+          {/* Additional Fields Section */}
+          <div className="border-t pt-4">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">Additional Details</h3>
+
+            {/* Financial Details */}
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Tax Assessed Value</label>
+                  <input
+                    type="text"
+                    value={formData.taxAssessedValue}
+                    onChange={e => setFormData(prev => ({ ...prev, taxAssessedValue: e.target.value }))}
+                    placeholder="901127"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Annual Tax</label>
+                  <input
+                    type="text"
+                    value={formData.annualTaxAmount}
+                    onChange={e => setFormData(prev => ({ ...prev, annualTaxAmount: e.target.value }))}
+                    placeholder="11339"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Price Range</label>
+                  <input
+                    type="text"
+                    value={formData.priceRange}
+                    onChange={e => setFormData(prev => ({ ...prev, priceRange: e.target.value }))}
+                    placeholder="$2M - $2M"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date on Market</label>
+                  <input
+                    type="text"
+                    value={formData.dateOnMarket}
+                    onChange={e => setFormData(prev => ({ ...prev, dateOnMarket: e.target.value }))}
+                    placeholder="5/29/2025"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Listing Agreement</label>
+                <input
+                  type="text"
+                  value={formData.listingAgreement}
+                  onChange={e => setFormData(prev => ({ ...prev, listingAgreement: e.target.value }))}
+                  placeholder="Excl Right"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Listing Terms</label>
+                <input
+                  type="text"
+                  value={formData.listingTerms}
+                  onChange={e => setFormData(prev => ({ ...prev, listingTerms: e.target.value }))}
+                  placeholder="Cash, Conventional, etc."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+            </div>
+
+            {/* Property Details */}
+            <div className="space-y-3 mt-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Lot Size</label>
+                  <input
+                    type="text"
+                    value={formData.lotSize}
+                    onChange={e => setFormData(prev => ({ ...prev, lotSize: e.target.value }))}
+                    placeholder="2,500 sqft"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Home Type</label>
+                  <input
+                    type="text"
+                    value={formData.homeType}
+                    onChange={e => setFormData(prev => ({ ...prev, homeType: e.target.value }))}
+                    placeholder="Single Family Residence"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Total Spaces</label>
+                  <input
+                    type="number"
+                    value={formData.totalSpaces}
+                    onChange={e => setFormData(prev => ({ ...prev, totalSpaces: e.target.value }))}
+                    placeholder="2"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Garage Spaces</label>
+                  <input
+                    type="number"
+                    value={formData.garageSpaces}
+                    onChange={e => setFormData(prev => ({ ...prev, garageSpaces: e.target.value }))}
+                    placeholder="2"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Year Built</label>
+                  <input
+                    type="number"
+                    value={formData.yearBuilt}
+                    onChange={e => setFormData(prev => ({ ...prev, yearBuilt: e.target.value }))}
+                    placeholder="1925"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="flex gap-3 pt-2">
