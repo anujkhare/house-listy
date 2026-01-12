@@ -28,16 +28,35 @@ A web application for tracking house listings in San Francisco with map visualiz
 ### Installation
 
 1. Install dependencies:
+
 ```bash
 npm install
 ```
 
-2. Start the development server:
+1. Start both the proxy server and the app:
+
 ```bash
-npm run dev
+npm start
 ```
 
+This will start:
+
+- **Proxy server** on `http://localhost:3001` (for fetching Zillow data)
+- **React app** on `http://localhost:3000` (your main app)
+
 The app will automatically open in your browser at `http://localhost:3000`
+
+#### Alternative: Run servers separately
+
+If you prefer to run them separately:
+
+```bash
+# Terminal 1 - Start the proxy server
+npm run server
+
+# Terminal 2 - Start the React app
+npm run dev
+```
 
 ### Build for Production
 
@@ -58,7 +77,14 @@ npm run preview
 ### Adding a New Listing
 
 1. Click the "Add Listing" button in the top-right corner
-2. Fill in the property details:
+2. **Option A - Auto-fill from Zillow (Recommended):**
+   - Paste the Zillow listing URL
+   - Click the green "Auto-fill" button
+   - The app will automatically extract: address, price, beds, baths, and sqft
+   - Review and adjust if needed
+
+3. **Option B - Manual entry:**
+   - Fill in the property details manually:
    - **Address** (required): Street address of the property
    - **Neighborhood**: SF neighborhood (e.g., Mission, SOMA, Nob Hill)
    - **Price**: Purchase price
@@ -66,7 +92,22 @@ npm run preview
    - **Beds/Baths**: Number of bedrooms and bathrooms
    - **Zillow URL**: Link to the Zillow listing for easy reference
    - **Notes**: Any initial thoughts or observations
-3. Click "Add Listing" - the address will be automatically geocoded and plotted on the map
+
+4. Click "Add Listing" - the address will be automatically geocoded and plotted on the map
+
+### How Auto-fill Works (CORS Solution)
+
+The auto-fill feature uses a **local proxy server** to bypass browser CORS restrictions:
+
+- **The Problem**: Browsers block direct requests to Zillow due to CORS (Cross-Origin Resource Sharing) security
+- **The Solution**: Our Node.js proxy server (`server.js`) fetches Zillow pages on your behalf
+- **Privacy**: Everything runs locally on your machine - no data is sent to external services
+- **How it works**:
+  1. You paste a Zillow URL
+  2. Your browser sends the URL to the local proxy server (port 3001)
+  3. The proxy server fetches the Zillow page (not blocked by CORS)
+  4. The proxy extracts property data and sends it back
+  5. The form auto-fills with the extracted data
 
 ### After Viewing a Property
 
@@ -107,6 +148,7 @@ This app is designed to integrate seamlessly with your Zillow browsing workflow:
 ## Data Storage
 
 All your data is stored locally in your browser's localStorage. This means:
+
 - ✅ Your data is private and never leaves your device
 - ✅ No account or login required
 - ✅ Fast and always available offline
@@ -127,21 +169,25 @@ All your data is stored locally in your browser's localStorage. This means:
 ## Troubleshooting
 
 **Map not loading?**
+
 - Check your internet connection (map tiles are loaded from OpenStreetMap)
 - Refresh the page
 
 **Address not appearing on map?**
+
 - Ensure the address is complete and valid
 - Try adding "San Francisco, CA" to the address
 - The geocoding service may be temporarily unavailable - wait a moment and try again
 
 **Data disappeared?**
+
 - Check if you're using the same browser
 - Avoid clearing browser data/cache
 
 ## Future Enhancements
 
 Potential features to add:
+
 - Export data to CSV/Excel
 - Import listings from CSV
 - Add photos to listings

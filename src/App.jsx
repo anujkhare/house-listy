@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Home, Plus, X, Eye, EyeOff, Star, Filter, List, Map as MapIcon, Edit2, Trash2, ExternalLink, Check, AlertCircle, Heart, ThumbsDown, XCircle } from 'lucide-react';
+import { MapPin, Home, Plus, X, Eye, EyeOff, Star, Filter, List, Map as MapIcon, Edit2, Trash2, ExternalLink, Check, AlertCircle, Heart, ThumbsDown, XCircle, Download } from 'lucide-react';
 import './storage';
+import { parseZillowListing, extractFromZillowUrl } from './zillowParser';
 
 // Geocoding function using Nominatim (free, no API key)
 const geocodeAddress = async (address) => {
@@ -559,14 +560,60 @@ function AddListingModal({ onClose, onAdd }) {
     notes: ''
   });
   const [isGeocoding, setIsGeocoding] = useState(false);
+  const [isFetching, setIsFetching] = useState(false);
+  const [fetchError, setFetchError] = useState(null);
+
+  const handleAutoFill = async () => {
+    if (!formData.zillowUrl) {
+      setFetchError('Please enter a Zillow URL first');
+      return;
+    }
+
+    setIsFetching(true);
+    setFetchError(null);
+
+    try {
+      // First try to extract from URL structure (this always works)
+      const urlData = extractFromZillowUrl(formData.zillowUrl);
+
+      // Then try to parse the page (may fail due to CORS)
+      let parsedData = {};
+      try {
+        parsedData = await parseZillowListing(formData.zillowUrl);
+      } catch (error) {
+        console.log('Could not fetch page details (CORS blocked), using URL data only');
+      }
+
+      // Merge data, preferring parsed data over URL data
+      const extractedData = { ...urlData, ...parsedData };
+
+      // Update form with extracted data (only non-empty fields)
+      setFormData(prev => ({
+        ...prev,
+        address: extractedData.address || prev.address,
+        price: extractedData.price || prev.price,
+        beds: extractedData.beds || prev.beds,
+        baths: extractedData.baths || prev.baths,
+        sqft: extractedData.sqft || prev.sqft,
+      }));
+
+      if (Object.keys(extractedData).length === 0 || !extractedData.address) {
+        setFetchError('Could not extract data. Please fill manually.');
+      }
+    } catch (error) {
+      setFetchError('Unable to fetch listing details. Please fill manually.');
+    } finally {
+      setIsFetching(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsGeocoding(true);
-    
+
     const priceNum = parseInt(formData.price.replace(/[^0-9]/g, ''));
     const sqftNum = parseInt(formData.sqft.replace(/[^0-9]/g, ''));
-    
+
     await onAdd({
       ...formData,
       price: priceNum || null,
@@ -661,13 +708,34 @@ function AddListingModal({ onClose, onAdd }) {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Zillow URL</label>
-            <input
-              type="url"
-              value={formData.zillowUrl}
-              onChange={e => setFormData(prev => ({ ...prev, zillowUrl: e.target.value }))}
-              placeholder="https://www.zillow.com/homedetails/..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
+            <div className="flex gap-2">
+              <input
+                type="url"
+                value={formData.zillowUrl}
+                onChange={e => setFormData(prev => ({ ...prev, zillowUrl: e.target.value }))}
+                placeholder="https://www.zillow.com/homedetails/..."
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+              <button
+                type="button"
+                onClick={handleAutoFill}
+                disabled={isFetching || !formData.zillowUrl}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                title="Auto-fill from Zillow"
+              >
+                <Download className="w-4 h-4" />
+                {isFetching ? 'Fetching...' : 'Auto-fill'}
+              </button>
+            </div>
+            {fetchError && (
+              <p className="mt-1 text-sm text-amber-600 flex items-center gap-1">
+                <AlertCircle className="w-4 h-4" />
+                {fetchError}
+              </p>
+            )}
+            <p className="mt-1 text-xs text-gray-500">
+              Paste the Zillow URL and click Auto-fill to extract details
+            </p>
           </div>
 
           <div>
