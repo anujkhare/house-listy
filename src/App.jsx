@@ -6,14 +6,36 @@ import { parseZillowListing, extractFromZillowUrl } from './zillowParser';
 // Geocoding function using Nominatim (free, no API key)
 const geocodeAddress = async (address) => {
   try {
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`,
-      { headers: { 'User-Agent': 'HouseHuntingTracker/1.0' } }
-    );
-    const data = await response.json();
-    if (data && data.length > 0) {
-      return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+    // Try different address formats
+    const addressVariations = [
+      address, // Original format
+      address.replace(/\s*APT\s*\d+/gi, ''), // Remove apartment number
+      address.replace(/\s*#\d+/gi, ''), // Remove unit number with #
+      address.replace(/\s*UNIT\s*\d+/gi, '') // Remove UNIT number
+    ];
+
+    for (const addressVariant of addressVariations) {
+      const trimmedAddress = addressVariant.trim();
+      if (!trimmedAddress) continue;
+
+      console.log(`Trying geocode for: ${trimmedAddress}`);
+
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(trimmedAddress)}&limit=1`,
+        { headers: { 'User-Agent': 'HouseHuntingTracker/1.0' } }
+      );
+      const data = await response.json();
+
+      if (data && data.length > 0) {
+        console.log(`✓ Geocoded successfully: ${trimmedAddress}`);
+        return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+      }
+
+      // Wait a bit between attempts to respect rate limits
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
+
+    console.log(`✗ All geocoding attempts failed for: ${address}`);
     return null;
   } catch (error) {
     console.error('Geocoding error:', error);
@@ -94,18 +116,30 @@ export default function HouseHuntingTracker() {
 
   // Initialize map
   useEffect(() => {
-    if (viewMode !== 'map' || mapInstanceRef.current) return;
+    if (viewMode !== 'map') return;
+    if (mapInstanceRef.current) return;
 
     const initMap = () => {
       if (!mapRef.current || !window.L) return;
-      
-      const map = window.L.map(mapRef.current).setView([SF_CENTER.lat, SF_CENTER.lng], 12);
-      window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
-      }).addTo(map);
-      
-      mapInstanceRef.current = map;
-      setMapReady(true);
+
+      // Clean up any existing Leaflet state before initializing
+      const container = mapRef.current;
+      if (container._leaflet_id) {
+        delete container._leaflet_id;
+      }
+      container.innerHTML = '';
+
+      try {
+        const map = window.L.map(mapRef.current).setView([SF_CENTER.lat, SF_CENTER.lng], 12);
+        window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        mapInstanceRef.current = map;
+        setMapReady(true);
+      } catch (error) {
+        console.error('Map initialization error:', error);
+      }
     };
 
     // Load Leaflet CSS and JS
@@ -117,15 +151,27 @@ export default function HouseHuntingTracker() {
 
       const script = document.createElement('script');
       script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-      script.onload = () => setTimeout(initMap, 100);
+      script.onload = () => {
+        // Wait for DOM to be ready
+        if (mapRef.current) {
+          setTimeout(initMap, 100);
+        }
+      };
       document.head.appendChild(script);
     } else {
-      initMap();
+      // Ensure DOM ref is ready before initializing
+      if (mapRef.current) {
+        setTimeout(initMap, 100);
+      }
     }
 
     return () => {
       if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
+        try {
+          mapInstanceRef.current.remove();
+        } catch (e) {
+          console.log('Error removing map:', e);
+        }
         mapInstanceRef.current = null;
         setMapReady(false);
       }
@@ -140,8 +186,8 @@ export default function HouseHuntingTracker() {
     markersRef.current.forEach(marker => marker.remove());
     markersRef.current = [];
 
-    const filteredListings = showVisitedOnly 
-      ? listings.filter(l => l.visited) 
+    const filteredListings = showVisitedOnly
+      ? listings.filter(l => l.visited)
       : listings;
 
     filteredListings.forEach(listing => {
@@ -190,7 +236,17 @@ export default function HouseHuntingTracker() {
     setShowAddModal(false);
   };
 
-  const handleUpdateListing = (updatedListing) => {
+  const handleUpdateListing = async (updatedListing) => {
+    // If address changed and no coordinates, geocode it
+    const originalListing = listings.find(l => l.id === updatedListing.id);
+    if (originalListing?.address !== updatedListing.address || (!updatedListing.lat || !updatedListing.lng)) {
+      const coords = await geocodeAddress(updatedListing.address + ', San Francisco, CA');
+      if (coords) {
+        updatedListing.lat = coords.lat;
+        updatedListing.lng = coords.lng;
+      }
+    }
+
     setListings(prev => prev.map(l => l.id === updatedListing.id ? updatedListing : l));
     setShowEditModal(false);
     setEditingListing(null);
@@ -214,9 +270,38 @@ export default function HouseHuntingTracker() {
     ));
   };
 
-  const filteredListings = showVisitedOnly 
-    ? listings.filter(l => l.visited) 
+  const filteredListings = showVisitedOnly
+    ? listings.filter(l => l.visited)
     : listings;
+
+  const fixMissingCoordinates = async () => {
+    const listingsWithoutCoords = listings.filter(l => !l.lat || !l.lng);
+    if (listingsWithoutCoords.length === 0) {
+      alert('All listings already have coordinates!');
+      return;
+    }
+
+    if (!confirm(`Found ${listingsWithoutCoords.length} listing(s) without coordinates. Geocode them now?`)) {
+      return;
+    }
+
+    for (const listing of listingsWithoutCoords) {
+      console.log(`Geocoding ${listing.address}...`);
+      const coords = await geocodeAddress(listing.address + ', San Francisco, CA');
+      if (coords) {
+        listing.lat = coords.lat;
+        listing.lng = coords.lng;
+        console.log(`✓ Geocoded ${listing.address}`);
+      } else {
+        console.log(`✗ Failed to geocode ${listing.address}`);
+      }
+      // Rate limit to avoid overwhelming the geocoding service
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+
+    setListings([...listings]);
+    alert('Geocoding complete! Check console for details.');
+  };
 
   if (isLoading) {
     return (
@@ -234,10 +319,20 @@ export default function HouseHuntingTracker() {
           <Home className="w-6 h-6 text-blue-600" />
           <h1 className="text-xl font-semibold text-gray-900">SF House Hunter</h1>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <span className="text-sm text-gray-500">
             {listings.length} listings • {listings.filter(l => l.visited).length} visited
           </span>
+          {listings.filter(l => !l.lat || !l.lng).length > 0 && (
+            <button
+              onClick={fixMissingCoordinates}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 text-amber-700 rounded-lg text-xs font-medium hover:bg-amber-200 transition"
+              title="Fix listings without map coordinates"
+            >
+              <MapPin className="w-3 h-3" />
+              Fix {listings.filter(l => !l.lat || !l.lng).length} missing
+            </button>
+          )}
         </div>
       </header>
 
