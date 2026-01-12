@@ -28,6 +28,17 @@ function extractListingData() {
     timestamp: new Date().toISOString()
   };
 
+  const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const getFieldValue = (text, label, nextLabels = []) => {
+    if (!text) return null;
+    const lookahead = nextLabels.length
+      ? `(?=${nextLabels.map(item => `${escapeRegex(item)}:`).join('|')})`
+      : '$';
+    const pattern = new RegExp(`${escapeRegex(label)}:\\s*([\\s\\S]*?)${lookahead}`, 'i');
+    const match = text.match(pattern);
+    return match ? match[1].trim() : null;
+  };
+
   try {
     // Extract address - try multiple selectors
     const addressSelectors = [
@@ -179,28 +190,33 @@ function extractListingData() {
           data.annualTaxAmount = annualTaxMatch[1].replace(/,/g, '');
         }
 
-        // Parse Price range: $2M - $2M
-        const priceRangeMatch = listText.match(/Price range:\s*([^\n]+)/i);
-        if (priceRangeMatch) {
-          data.priceRange = priceRangeMatch[1].trim();
+        const priceRangeValue = getFieldValue(listText, 'Price range', [
+          'Date on market',
+          'Listing agreement',
+          'Listing terms'
+        ]);
+        if (priceRangeValue) {
+          data.priceRange = priceRangeValue;
         }
 
-        // Parse Date on market: 5/29/2025
-        const dateOnMarketMatch = listText.match(/Date on market:\s*([^\n]+)/i);
-        if (dateOnMarketMatch) {
-          data.dateOnMarket = dateOnMarketMatch[1].trim();
+        const dateOnMarketValue = getFieldValue(listText, 'Date on market', [
+          'Listing agreement',
+          'Listing terms'
+        ]);
+        if (dateOnMarketValue) {
+          data.dateOnMarket = dateOnMarketValue;
         }
 
-        // Parse Listing agreement: Excl Right
-        const listingAgreementMatch = listText.match(/Listing agreement:\s*([^\n]+)/i);
-        if (listingAgreementMatch) {
-          data.listingAgreement = listingAgreementMatch[1].trim();
+        const listingAgreementValue = getFieldValue(listText, 'Listing agreement', [
+          'Listing terms'
+        ]);
+        if (listingAgreementValue) {
+          data.listingAgreement = listingAgreementValue;
         }
 
-        // Parse Listing terms: Cash,Conventional,Owner May Carry,Private Financing Available
-        const listingTermsMatch = listText.match(/Listing terms:\s*([^\n]+)/i);
-        if (listingTermsMatch) {
-          data.listingTerms = listingTermsMatch[1].trim();
+        const listingTermsValue = getFieldValue(listText, 'Listing terms');
+        if (listingTermsValue) {
+          data.listingTerms = listingTermsValue;
         }
       }
 

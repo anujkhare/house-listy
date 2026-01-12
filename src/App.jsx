@@ -203,7 +203,9 @@ export default function HouseHuntingTracker() {
     if (confirm('Are you sure you want to delete this listing?')) {
       setListings(prev => prev.filter(l => l.id !== id));
       if (selectedListing?.id === id) setSelectedListing(null);
+      return true;
     }
+    return false;
   };
 
   const toggleVisited = (id) => {
@@ -305,7 +307,6 @@ export default function HouseHuntingTracker() {
         ) : (
           <ListView 
             listings={filteredListings}
-            onSelect={setSelectedListing}
             onEdit={(listing) => { setEditingListing(listing); setShowEditModal(true); }}
             onDelete={handleDeleteListing}
             onToggleVisited={toggleVisited}
@@ -327,6 +328,13 @@ export default function HouseHuntingTracker() {
           listing={editingListing}
           onClose={() => { setShowEditModal(false); setEditingListing(null); }}
           onSave={handleUpdateListing}
+          onDelete={(id) => {
+            const didDelete = handleDeleteListing(id);
+            if (didDelete) {
+              setShowEditModal(false);
+              setEditingListing(null);
+            }
+          }}
         />
       )}
 
@@ -574,7 +582,12 @@ function ListingDetail({ listing, onClose, onEdit, onDelete, onToggleVisited }) 
   );
 }
 
-function ListView({ listings, onSelect, onEdit, onDelete, onToggleVisited }) {
+function ListView({ listings, onEdit, onDelete, onToggleVisited }) {
+  const formatText = (value) => (value || value === 0 ? value : '—');
+  const formatNumber = (value) => (value || value === 0 ? value.toLocaleString() : '—');
+  const formatCurrency = (value) => (value || value === 0 ? `$${Number(value).toLocaleString()}` : '—');
+  const formatArray = (value) => (value?.length ? value.join(', ') : '—');
+
   if (listings.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center">
@@ -589,72 +602,132 @@ function ListView({ listings, onSelect, onEdit, onDelete, onToggleVisited }) {
 
   return (
     <div className="flex-1 overflow-auto p-4">
-      <div className="max-w-4xl mx-auto space-y-3">
-        {listings.map(listing => (
-          <div 
-            key={listing.id}
-            className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition cursor-pointer"
-            onClick={() => onSelect(listing)}
-          >
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <h3 className="font-medium text-gray-900">{listing.address}</h3>
-                  {listing.visited && (
-                    <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded-full">
-                      Visited
-                    </span>
-                  )}
-                </div>
-                {listing.neighborhood && (
-                  <p className="text-sm text-gray-500">{listing.neighborhood}</p>
-                )}
-                <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
-                  <span className="font-semibold text-gray-900">${listing.price?.toLocaleString()}</span>
-                  <span>{listing.beds} bed</span>
-                  <span>{listing.baths} bath</span>
-                  {listing.sqft && <span>{listing.sqft.toLocaleString()} sqft</span>}
-                  {listing.pricePerSqft && <span>${listing.pricePerSqft}/sqft</span>}
-                </div>
-              </div>
-              <div className="flex items-center gap-1 ml-4" onClick={e => e.stopPropagation()}>
-                <button
-                  onClick={() => onToggleVisited(listing.id)}
-                  className={`p-2 rounded-lg transition ${
-                    listing.visited ? 'text-green-600 hover:bg-green-50' : 'text-gray-400 hover:bg-gray-100'
-                  }`}
-                >
-                  <Check className="w-4 h-4" />
-                </button>
-                <button
+      <div className="bg-white border border-gray-200 rounded-xl">
+        <div className="overflow-x-auto">
+          <table className="min-w-[2200px] text-left text-sm">
+            <thead className="bg-gray-50 text-gray-600 sticky top-0 z-10">
+              <tr>
+                <th className="px-3 py-2 font-medium">Address</th>
+                <th className="px-3 py-2 font-medium">Neighborhood</th>
+                <th className="px-3 py-2 font-medium">Likes</th>
+                <th className="px-3 py-2 font-medium">Dislikes</th>
+                <th className="px-3 py-2 font-medium">Deal Breakers</th>
+                <th className="px-3 py-2 font-medium">Price</th>
+                <th className="px-3 py-2 font-medium">Beds</th>
+                <th className="px-3 py-2 font-medium">Baths</th>
+                <th className="px-3 py-2 font-medium">Sqft</th>
+                <th className="px-3 py-2 font-medium">$/Sqft</th>
+                <th className="px-3 py-2 font-medium">Tax Assessed</th>
+                <th className="px-3 py-2 font-medium">Annual Tax</th>
+                <th className="px-3 py-2 font-medium">Price Range</th>
+                <th className="px-3 py-2 font-medium">Date on Market</th>
+                <th className="px-3 py-2 font-medium">Listing Agreement</th>
+                <th className="px-3 py-2 font-medium">Listing Terms</th>
+                <th className="px-3 py-2 font-medium">Lot Size</th>
+                <th className="px-3 py-2 font-medium">Total Spaces</th>
+                <th className="px-3 py-2 font-medium">Garage Spaces</th>
+                <th className="px-3 py-2 font-medium">Home Type</th>
+                <th className="px-3 py-2 font-medium">Year Built</th>
+                <th className="px-3 py-2 font-medium">Visited</th>
+                <th className="px-3 py-2 font-medium">Zillow</th>
+                <th className="px-3 py-2 font-medium">Notes</th>
+                <th className="px-3 py-2 font-medium text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="text-gray-700">
+              {listings.map(listing => (
+                <tr
+                  key={listing.id}
+                  className="border-t border-gray-100 hover:bg-blue-50/40 cursor-pointer"
                   onClick={() => onEdit(listing)}
-                  className="p-2 text-gray-400 hover:bg-gray-100 rounded-lg transition"
                 >
-                  <Edit2 className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => onDelete(listing.id)}
-                  className="p-2 text-gray-400 hover:bg-red-50 hover:text-red-600 rounded-lg transition"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-            {(listing.likes?.length > 0 || listing.dealBreakers?.length > 0) && (
-              <div className="flex items-center gap-4 mt-3 pt-3 border-t border-gray-100">
-                {listing.likes?.length > 0 && (
-                  <span className="text-xs text-green-600">{listing.likes.length} likes</span>
-                )}
-                {listing.dislikes?.length > 0 && (
-                  <span className="text-xs text-amber-600">{listing.dislikes.length} dislikes</span>
-                )}
-                {listing.dealBreakers?.length > 0 && (
-                  <span className="text-xs text-red-600">{listing.dealBreakers.length} deal breakers</span>
-                )}
-              </div>
-            )}
-          </div>
-        ))}
+                  <td className="px-3 py-2 font-medium text-gray-900 whitespace-nowrap">{formatText(listing.address)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{formatText(listing.neighborhood)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap" title={formatArray(listing.likes)}>
+                    {listing.likes?.length ? `${listing.likes.length}` : '—'}
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap" title={formatArray(listing.dislikes)}>
+                    {listing.dislikes?.length ? `${listing.dislikes.length}` : '—'}
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap" title={formatArray(listing.dealBreakers)}>
+                    {listing.dealBreakers?.length ? `${listing.dealBreakers.length}` : '—'}
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap">{formatCurrency(listing.price)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{formatText(listing.beds)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{formatText(listing.baths)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{formatNumber(listing.sqft)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{formatCurrency(listing.pricePerSqft)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{formatCurrency(listing.taxAssessedValue)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{formatCurrency(listing.annualTaxAmount)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{formatText(listing.priceRange)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{formatText(listing.dateOnMarket)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{formatText(listing.listingAgreement)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{formatText(listing.listingTerms)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{formatText(listing.lotSize)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{formatText(listing.totalSpaces)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{formatText(listing.garageSpaces)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{formatText(listing.homeType)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{formatText(listing.yearBuilt)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    {listing.visited ? (
+                      <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded-full">
+                        Visited
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">No</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    {listing.zillowUrl ? (
+                      <a
+                        href={listing.zillowUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700"
+                        onClick={event => event.stopPropagation()}
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        <span className="text-xs">Open</span>
+                      </a>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+                  <td className="px-3 py-2 max-w-[240px] truncate" title={formatText(listing.notes)}>
+                    {formatText(listing.notes)}
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap text-right" onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => onToggleVisited(listing.id)}
+                        className={`p-2 rounded-lg transition ${
+                          listing.visited ? 'text-green-600 hover:bg-green-50' : 'text-gray-400 hover:bg-gray-100'
+                        }`}
+                        title={listing.visited ? 'Mark unvisited' : 'Mark visited'}
+                      >
+                        <Check className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => onEdit(listing)}
+                        className="p-2 text-gray-400 hover:bg-gray-100 rounded-lg transition"
+                        title="Edit listing"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => onDelete(listing.id)}
+                        className="p-2 text-gray-400 hover:bg-red-50 hover:text-red-600 rounded-lg transition"
+                        title="Delete listing"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
@@ -1073,7 +1146,7 @@ function AddListingModal({ onClose, onAdd }) {
   );
 }
 
-function EditListingModal({ listing, onClose, onSave }) {
+function EditListingModal({ listing, onClose, onSave, onDelete }) {
   const [formData, setFormData] = useState({
     ...listing,
     price: listing.price?.toString() || '',
@@ -1270,6 +1343,13 @@ function EditListingModal({ listing, onClose, onSave }) {
           </div>
 
           <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => onDelete(listing.id)}
+              className="px-4 py-2 bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 transition"
+            >
+              Delete
+            </button>
             <button
               type="button"
               onClick={onClose}
