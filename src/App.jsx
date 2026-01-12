@@ -204,8 +204,37 @@ export default function HouseHuntingTracker() {
           popupAnchor: [0, -32]
         });
 
+        // Create popup content with price info
+        const priceText = listing.price ? `$${listing.price.toLocaleString()}` : 'N/A';
+        const pricePerSqftText = listing.pricePerSqft ? `$${listing.pricePerSqft.toLocaleString()}/sqft` : 'N/A';
+
+        const popupContent = `
+          <div style="min-width: 200px;">
+            <div style="font-weight: 600; font-size: 14px; margin-bottom: 8px; color: #111827;">${listing.address}</div>
+            <div style="display: flex; gap: 12px; margin-bottom: 4px;">
+              <div>
+                <div style="font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;">Price</div>
+                <div style="font-size: 16px; font-weight: 700; color: #1f2937;">${priceText}</div>
+              </div>
+              <div>
+                <div style="font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;">$/Sqft</div>
+                <div style="font-size: 16px; font-weight: 700; color: #1f2937;">${pricePerSqftText}</div>
+              </div>
+            </div>
+            ${listing.beds || listing.baths ? `<div style="font-size: 12px; color: #6b7280; margin-top: 4px;">${listing.beds || '?'} beds • ${listing.baths || '?'} baths</div>` : ''}
+            ${listing.zillowUrl ? `<a href="${listing.zillowUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 4px; margin-top: 8px; padding: 6px 12px; background: #2563eb; color: white; text-decoration: none; border-radius: 6px; font-size: 12px; font-weight: 500; transition: background 0.2s;" onmouseover="this.style.background='#1d4ed8'" onmouseout="this.style.background='#2563eb'">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+              View on Zillow
+            </a>` : ''}
+          </div>
+        `;
+
         const marker = window.L.marker([listing.lat, listing.lng], { icon })
           .addTo(mapInstanceRef.current)
+          .bindPopup(popupContent, {
+            maxWidth: 300,
+            className: 'custom-popup'
+          })
           .on('click', () => setSelectedListing(listing));
 
         markersRef.current.push(marker);
@@ -265,9 +294,13 @@ export default function HouseHuntingTracker() {
   };
 
   const toggleVisited = (id) => {
-    setListings(prev => prev.map(l => 
+    setListings(prev => prev.map(l =>
       l.id === id ? { ...l, visited: !l.visited } : l
     ));
+    // Update selectedListing if it's the one being toggled
+    if (selectedListing?.id === id) {
+      setSelectedListing(prev => ({ ...prev, visited: !prev.visited }));
+    }
   };
 
   const filteredListings = showVisitedOnly
@@ -681,7 +714,6 @@ function ListView({ listings, onEdit, onDelete, onToggleVisited }) {
   const formatText = (value) => (value || value === 0 ? value : '—');
   const formatNumber = (value) => (value || value === 0 ? value.toLocaleString() : '—');
   const formatCurrency = (value) => (value || value === 0 ? `$${Number(value).toLocaleString()}` : '—');
-  const formatArray = (value) => (value?.length ? value.join(', ') : '—');
 
   if (listings.length === 0) {
     return (
@@ -738,14 +770,14 @@ function ListView({ listings, onEdit, onDelete, onToggleVisited }) {
                 >
                   <td className="px-3 py-2 font-medium text-gray-900 whitespace-nowrap">{formatText(listing.address)}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{formatText(listing.neighborhood)}</td>
-                  <td className="px-3 py-2 whitespace-nowrap" title={formatArray(listing.likes)}>
-                    {listing.likes?.length ? `${listing.likes.length}` : '—'}
+                  <td className="px-3 py-2 whitespace-pre-line max-w-xs">
+                    {listing.likes?.length ? listing.likes.join('\n') : '—'}
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap" title={formatArray(listing.dislikes)}>
-                    {listing.dislikes?.length ? `${listing.dislikes.length}` : '—'}
+                  <td className="px-3 py-2 whitespace-pre-line max-w-xs">
+                    {listing.dislikes?.length ? listing.dislikes.join('\n') : '—'}
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap" title={formatArray(listing.dealBreakers)}>
-                    {listing.dealBreakers?.length ? `${listing.dealBreakers.length}` : '—'}
+                  <td className="px-3 py-2 whitespace-pre-line max-w-xs">
+                    {listing.dealBreakers?.length ? listing.dealBreakers.join('\n') : '—'}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap">{formatCurrency(listing.price)}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{formatText(listing.beds)}</td>

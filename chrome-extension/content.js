@@ -45,7 +45,7 @@ function extractListingData() {
       'h1[class*="Text-c11n"]',
       'h1[data-testid="property-address"]',
       'h1.summary-address',
-      '[data-testid="bed-bath-beyond"] h1'
+      '[data-testid="bed-bath-sqft-facts"] h1'
     ];
 
     for (const selector of addressSelectors) {
@@ -75,19 +75,86 @@ function extractListingData() {
       }
     }
 
-    // Extract beds - look for bedroom info
-    const bedsPatterns = [
-      { selector: '[data-testid="bed-bath-beyond"]', pattern: /(\d+)\s*bd/i },
-      { selector: '[class*="bed"]', pattern: /(\d+)\s*bed/i }
-    ];
+    // Extract beds, baths, and sqft from the structured data-testid element
+    const bedBathSqftContainer = document.querySelector('[data-testid="bed-bath-sqft-facts"]');
+    if (bedBathSqftContainer) {
+      console.log('Found bed-bath-sqft-facts container');
+      console.log('Container HTML:', bedBathSqftContainer.innerHTML);
 
-    for (const { selector, pattern } of bedsPatterns) {
-      const element = document.querySelector(selector);
-      if (element) {
-        const match = element.textContent.match(pattern);
-        if (match) {
-          data.beds = match[1];
-          break;
+      // Get all child divs (should be one for beds, baths, and sqft)
+      const factDivs = bedBathSqftContainer.querySelectorAll(':scope > div');
+      console.log(`Found ${factDivs.length} fact divs`);
+
+      factDivs.forEach((factDiv, index) => {
+        console.log(`\nProcessing fact div ${index}:`, factDiv.innerHTML);
+        const spans = factDiv.querySelectorAll('span');
+        console.log(`  Found ${spans.length} spans`);
+
+        if (spans.length >= 2) {
+          const value = spans[0].textContent.trim();
+          const label = spans[1].textContent.trim().toLowerCase();
+
+          console.log(`  Value: "${value}", Label: "${label}"`);
+
+          if (label.includes('bed')) {
+            data.beds = value.replace(/[^0-9]/g, '');
+            console.log(`  ✓ Extracted beds: ${data.beds}`);
+          } else if (label.includes('bath')) {
+            // Extract baths - handle formats like "2.5" or "2"
+            const bathMatch = value.match(/(\d+(?:\.\d+)?)/);
+            if (bathMatch) {
+              data.baths = bathMatch[1];
+              console.log(`  ✓ Extracted baths: ${data.baths}`);
+            }
+          } else if (label.includes('sqft')) {
+            data.sqft = value.replace(/[^0-9]/g, '');
+            console.log(`  ✓ Extracted sqft: ${data.sqft}`);
+          }
+        } else {
+          console.log(`  ⚠ Not enough spans, trying alternative structure`);
+          // Try alternative structure - sometimes the text is directly in the div
+          const allText = factDiv.textContent.trim();
+          console.log(`  All text: "${allText}"`);
+
+          // Try to match patterns like "3 bd", "2 ba", "1,500 sqft"
+          if (allText.match(/\d+\s*(bd|bed)/i)) {
+            const match = allText.match(/(\d+)\s*(bd|bed)/i);
+            if (match) {
+              data.beds = match[1];
+              console.log(`  ✓ Extracted beds (alt): ${data.beds}`);
+            }
+          } else if (allText.match(/[\d.]+\s*(ba|bath)/i)) {
+            const match = allText.match(/([\d.]+)\s*(ba|bath)/i);
+            if (match) {
+              data.baths = match[1];
+              console.log(`  ✓ Extracted baths (alt): ${data.baths}`);
+            }
+          } else if (allText.match(/[\d,]+\s*sqft/i)) {
+            const match = allText.match(/([\d,]+)\s*sqft/i);
+            if (match) {
+              data.sqft = match[1].replace(/,/g, '');
+              console.log(`  ✓ Extracted sqft (alt): ${data.sqft}`);
+            }
+          }
+        }
+      });
+    }
+
+    // Fallback: Extract beds - look for bedroom info if not found above
+    if (!data.beds) {
+      const bedsPatterns = [
+        { selector: '[data-testid="bed-bath-sqft-facts"]', pattern: /(\d+)\s*bd/i },
+        { selector: '[class*="bed"]', pattern: /(\d+)\s*bed/i }
+      ];
+
+      for (const { selector, pattern } of bedsPatterns) {
+        const element = document.querySelector(selector);
+        if (element) {
+          const match = element.textContent.match(pattern);
+          if (match) {
+            data.beds = match[1];
+            break;
+          }
         }
       }
     }
@@ -119,36 +186,40 @@ function extractListingData() {
       }
     });
 
-    // Extract baths
-    const bathsPatterns = [
-      { selector: '[data-testid="bed-bath-beyond"]', pattern: /(\d+\.?\d*)\s*ba/i },
-      { selector: '[class*="bath"]', pattern: /(\d+\.?\d*)\s*bath/i }
-    ];
+    // Fallback: Extract baths if not found above
+    if (!data.baths) {
+      const bathsPatterns = [
+        { selector: '[data-testid="bed-bath-sqft-facts"]', pattern: /(\d+(?:\.\d+)?)\s*ba(?:th)?s?/i },
+        { selector: '[class*="bath"]', pattern: /(\d+(?:\.\d+)?)\s*bath/i }
+      ];
 
-    for (const { selector, pattern } of bathsPatterns) {
-      const element = document.querySelector(selector);
-      if (element) {
-        const match = element.textContent.match(pattern);
-        if (match) {
-          data.baths = match[1];
-          break;
+      for (const { selector, pattern } of bathsPatterns) {
+        const element = document.querySelector(selector);
+        if (element) {
+          const match = element.textContent.match(pattern);
+          if (match) {
+            data.baths = match[1];
+            break;
+          }
         }
       }
     }
 
-    // Extract sqft
-    const sqftPatterns = [
-      { selector: '[data-testid="bed-bath-beyond"]', pattern: /(\d[\d,]*)\s*sqft/i },
-      { selector: '[class*="square"]', pattern: /(\d[\d,]*)\s*sqft/i }
-    ];
+    // Fallback: Extract sqft if not found above
+    if (!data.sqft) {
+      const sqftPatterns = [
+        { selector: '[data-testid="bed-bath-sqft-facts"]', pattern: /(\d[\d,]*)\s*sqft/i },
+        { selector: '[class*="square"]', pattern: /(\d[\d,]*)\s*sqft/i }
+      ];
 
-    for (const { selector, pattern } of sqftPatterns) {
-      const element = document.querySelector(selector);
-      if (element) {
-        const match = element.textContent.match(pattern);
-        if (match) {
-          data.sqft = match[1].replace(/,/g, '');
-          break;
+      for (const { selector, pattern } of sqftPatterns) {
+        const element = document.querySelector(selector);
+        if (element) {
+          const match = element.textContent.match(pattern);
+          if (match) {
+            data.sqft = match[1].replace(/,/g, '');
+            break;
+          }
         }
       }
     }
