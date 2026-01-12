@@ -120,16 +120,27 @@ export default function HouseHuntingTracker() {
     if (mapInstanceRef.current) return;
 
     const initMap = () => {
-      if (!mapRef.current || !window.L) return;
+      if (!mapRef.current || !window.L) {
+        console.log('Map ref or Leaflet not ready');
+        return false;
+      }
+
+      // Check if container has dimensions (is actually rendered)
+      const container = mapRef.current;
+      const rect = container.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) {
+        console.log('Container not ready, dimensions:', rect.width, rect.height);
+        return false;
+      }
 
       // Clean up any existing Leaflet state before initializing
-      const container = mapRef.current;
       if (container._leaflet_id) {
         delete container._leaflet_id;
       }
       container.innerHTML = '';
 
       try {
+        console.log('Initializing map...');
         const map = window.L.map(mapRef.current).setView([SF_CENTER.lat, SF_CENTER.lng], 12);
         window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           attribution: '© OpenStreetMap contributors'
@@ -137,8 +148,19 @@ export default function HouseHuntingTracker() {
 
         mapInstanceRef.current = map;
         setMapReady(true);
+        console.log('Map initialized successfully');
+        return true;
       } catch (error) {
         console.error('Map initialization error:', error);
+        return false;
+      }
+    };
+
+    const tryInitMap = (retries = 0, maxRetries = 10) => {
+      const success = initMap();
+      if (!success && retries < maxRetries) {
+        console.log(`Retrying map initialization (attempt ${retries + 1}/${maxRetries})...`);
+        setTimeout(() => tryInitMap(retries + 1, maxRetries), 200);
       }
     };
 
@@ -152,17 +174,13 @@ export default function HouseHuntingTracker() {
       const script = document.createElement('script');
       script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
       script.onload = () => {
-        // Wait for DOM to be ready
-        if (mapRef.current) {
-          setTimeout(initMap, 100);
-        }
+        console.log('Leaflet loaded');
+        tryInitMap();
       };
       document.head.appendChild(script);
     } else {
-      // Ensure DOM ref is ready before initializing
-      if (mapRef.current) {
-        setTimeout(initMap, 100);
-      }
+      // Leaflet already loaded, try to init
+      tryInitMap();
     }
 
     return () => {
@@ -192,9 +210,21 @@ export default function HouseHuntingTracker() {
 
     filteredListings.forEach(listing => {
       if (listing.lat && listing.lng) {
-        const iconHtml = listing.visited
-          ? `<div style="background: #10b981; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg></div>`
-          : `<div style="background: #3b82f6; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"><svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg></div>`;
+        let iconHtml;
+
+        if (listing.visited && listing.sentiment === 'liked') {
+          // Green checkmark for liked
+          iconHtml = `<div style="background: #10b981; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg></div>`;
+        } else if (listing.visited && listing.sentiment === 'disliked') {
+          // Red X for disliked
+          iconHtml = `<div style="background: #ef4444; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></div>`;
+        } else if (listing.visited) {
+          // Gray checkmark for visited but no sentiment
+          iconHtml = `<div style="background: #6b7280; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg></div>`;
+        } else {
+          // Blue house for not visited
+          iconHtml = `<div style="background: #3b82f6; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"><svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg></div>`;
+        }
 
         const icon = window.L.divIcon({
           html: iconHtml,
@@ -256,6 +286,7 @@ export default function HouseHuntingTracker() {
       lat: coords?.lat || null,
       lng: coords?.lng || null,
       visited: false,
+      sentiment: null, // null, 'liked', or 'disliked'
       createdAt: new Date().toISOString(),
       likes: [],
       dislikes: [],
@@ -300,6 +331,16 @@ export default function HouseHuntingTracker() {
     // Update selectedListing if it's the one being toggled
     if (selectedListing?.id === id) {
       setSelectedListing(prev => ({ ...prev, visited: !prev.visited }));
+    }
+  };
+
+  const setSentiment = (id, sentiment) => {
+    setListings(prev => prev.map(l =>
+      l.id === id ? { ...l, sentiment, visited: true } : l
+    ));
+    // Update selectedListing if it's the one being changed
+    if (selectedListing?.id === id) {
+      setSelectedListing(prev => ({ ...prev, sentiment, visited: true }));
     }
   };
 
@@ -423,21 +464,23 @@ export default function HouseHuntingTracker() {
             
             {/* Sidebar */}
             {selectedListing && (
-              <ListingDetail 
-                listing={selectedListing} 
+              <ListingDetail
+                listing={selectedListing}
                 onClose={() => setSelectedListing(null)}
                 onEdit={() => { setEditingListing(selectedListing); setShowEditModal(true); }}
                 onDelete={() => handleDeleteListing(selectedListing.id)}
                 onToggleVisited={() => toggleVisited(selectedListing.id)}
+                onSetSentiment={(sentiment) => setSentiment(selectedListing.id, sentiment)}
               />
             )}
           </>
         ) : (
-          <ListView 
+          <ListView
             listings={filteredListings}
             onEdit={(listing) => { setEditingListing(listing); setShowEditModal(true); }}
             onDelete={handleDeleteListing}
             onToggleVisited={toggleVisited}
+            onSetSentiment={setSentiment}
           />
         )}
       </div>
@@ -474,7 +517,7 @@ export default function HouseHuntingTracker() {
   );
 }
 
-function ListingDetail({ listing, onClose, onEdit, onDelete, onToggleVisited }) {
+function ListingDetail({ listing, onClose, onEdit, onDelete, onToggleVisited, onSetSentiment }) {
   return (
     <div className="w-96 bg-white border-l border-gray-200 overflow-y-auto">
       <div className="p-4 border-b border-gray-200 flex items-center justify-between">
@@ -486,13 +529,25 @@ function ListingDetail({ listing, onClose, onEdit, onDelete, onToggleVisited }) 
       
       <div className="p-4 space-y-4">
         <div>
-          <div className="flex items-start justify-between">
+          <div className="flex items-start justify-between gap-2">
             <h3 className="font-medium text-gray-900">{listing.address}</h3>
-            {listing.visited && (
-              <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded-full">
-                Visited
-              </span>
-            )}
+            <div className="flex gap-1">
+              {listing.visited && (
+                <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
+                  Visited
+                </span>
+              )}
+              {listing.sentiment === 'liked' && (
+                <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded-full">
+                  Liked
+                </span>
+              )}
+              {listing.sentiment === 'disliked' && (
+                <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-medium rounded-full">
+                  Disliked
+                </span>
+              )}
+            </div>
           </div>
           {listing.neighborhood && (
             <p className="text-sm text-gray-500">{listing.neighborhood}</p>
@@ -680,37 +735,66 @@ function ListingDetail({ listing, onClose, onEdit, onDelete, onToggleVisited }) 
           </div>
         )}
 
-        <div className="pt-4 border-t border-gray-200 flex gap-2">
-          <button
-            onClick={onToggleVisited}
-            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition ${
-              listing.visited 
-                ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' 
-                : 'bg-green-600 text-white hover:bg-green-700'
-            }`}
-          >
-            <Check className="w-4 h-4" />
-            {listing.visited ? 'Mark Unvisited' : 'Mark Visited'}
-          </button>
-          <button
-            onClick={onEdit}
-            className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition"
-          >
-            <Edit2 className="w-4 h-4" />
-          </button>
-          <button
-            onClick={onDelete}
-            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+        <div className="pt-4 border-t border-gray-200 space-y-3">
+          {/* Like/Dislike Buttons */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => onSetSentiment(listing.sentiment === 'liked' ? null : 'liked')}
+              className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition ${
+                listing.sentiment === 'liked'
+                  ? 'bg-green-600 text-white hover:bg-green-700'
+                  : 'bg-green-50 text-green-700 hover:bg-green-100 border border-green-200'
+              }`}
+            >
+              <Heart className="w-4 h-4" />
+              {listing.sentiment === 'liked' ? 'Liked' : 'Like'}
+            </button>
+            <button
+              onClick={() => onSetSentiment(listing.sentiment === 'disliked' ? null : 'disliked')}
+              className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition ${
+                listing.sentiment === 'disliked'
+                  ? 'bg-red-600 text-white hover:bg-red-700'
+                  : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'
+              }`}
+            >
+              <ThumbsDown className="w-4 h-4" />
+              {listing.sentiment === 'disliked' ? 'Disliked' : 'Dislike'}
+            </button>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-2">
+            <button
+              onClick={onToggleVisited}
+              className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition ${
+                listing.visited
+                  ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  : 'bg-blue-600 text-white hover:bg-blue-700'
+              }`}
+            >
+              <Check className="w-4 h-4" />
+              {listing.visited ? 'Mark Unvisited' : 'Mark Visited'}
+            </button>
+            <button
+              onClick={onEdit}
+              className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition"
+            >
+              <Edit2 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={onDelete}
+              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-function ListView({ listings, onEdit, onDelete, onToggleVisited }) {
+function ListView({ listings, onEdit, onDelete, onToggleVisited, onSetSentiment }) {
   const formatText = (value) => (value || value === 0 ? value : '—');
   const formatNumber = (value) => (value || value === 0 ? value.toLocaleString() : '—');
   const formatCurrency = (value) => (value || value === 0 ? `$${Number(value).toLocaleString()}` : '—');
@@ -756,6 +840,7 @@ function ListView({ listings, onEdit, onDelete, onToggleVisited }) {
                 <th className="px-3 py-2 font-medium">Home Type</th>
                 <th className="px-3 py-2 font-medium">Year Built</th>
                 <th className="px-3 py-2 font-medium">Visited</th>
+                <th className="px-3 py-2 font-medium">Sentiment</th>
                 <th className="px-3 py-2 font-medium">Zillow</th>
                 <th className="px-3 py-2 font-medium">Notes</th>
                 <th className="px-3 py-2 font-medium text-right">Actions</th>
@@ -805,6 +890,19 @@ function ListView({ listings, onEdit, onDelete, onToggleVisited }) {
                     )}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap">
+                    {listing.sentiment === 'liked' ? (
+                      <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded-full">
+                        Liked
+                      </span>
+                    ) : listing.sentiment === 'disliked' ? (
+                      <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-medium rounded-full">
+                        Disliked
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">—</span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 whitespace-nowrap">
                     {listing.zillowUrl ? (
                       <a
                         href={listing.zillowUrl}
@@ -826,9 +924,27 @@ function ListView({ listings, onEdit, onDelete, onToggleVisited }) {
                   <td className="px-3 py-2 whitespace-nowrap text-right" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-1">
                       <button
+                        onClick={() => onSetSentiment(listing.id, listing.sentiment === 'liked' ? null : 'liked')}
+                        className={`p-2 rounded-lg transition ${
+                          listing.sentiment === 'liked' ? 'text-green-600 hover:bg-green-50' : 'text-gray-400 hover:bg-gray-100'
+                        }`}
+                        title={listing.sentiment === 'liked' ? 'Remove like' : 'Like'}
+                      >
+                        <Heart className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => onSetSentiment(listing.id, listing.sentiment === 'disliked' ? null : 'disliked')}
+                        className={`p-2 rounded-lg transition ${
+                          listing.sentiment === 'disliked' ? 'text-red-600 hover:bg-red-50' : 'text-gray-400 hover:bg-gray-100'
+                        }`}
+                        title={listing.sentiment === 'disliked' ? 'Remove dislike' : 'Dislike'}
+                      >
+                        <ThumbsDown className="w-4 h-4" />
+                      </button>
+                      <button
                         onClick={() => onToggleVisited(listing.id)}
                         className={`p-2 rounded-lg transition ${
-                          listing.visited ? 'text-green-600 hover:bg-green-50' : 'text-gray-400 hover:bg-gray-100'
+                          listing.visited ? 'text-blue-600 hover:bg-blue-50' : 'text-gray-400 hover:bg-gray-100'
                         }`}
                         title={listing.visited ? 'Mark unvisited' : 'Mark visited'}
                       >
@@ -1310,6 +1426,21 @@ function EditListingModal({ listing, onClose, onSave, onDelete }) {
     }
   };
 
+  const addItemsFromText = (field, text, setValue) => {
+    if (text.trim()) {
+      // Split by newlines, filter empty lines, trim each line
+      const items = text
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0);
+
+      if (items.length > 0) {
+        setFormData(prev => ({ ...prev, [field]: [...prev[field], ...items] }));
+        setValue('');
+      }
+    }
+  };
+
   const removeItem = (field, index) => {
     setFormData(prev => ({ ...prev, [field]: prev[field].filter((_, i) => i !== index) }));
   };
@@ -1362,21 +1493,26 @@ function EditListingModal({ listing, onClose, onSave, onDelete }) {
             <label className="block text-sm font-medium text-green-700 mb-2 flex items-center gap-1">
               <Heart className="w-4 h-4" /> Things I Liked
             </label>
-            <div className="flex gap-2 mb-2">
-              <input
-                type="text"
+            <div className="mb-2">
+              <textarea
                 value={newLike}
                 onChange={e => setNewLike(e.target.value)}
-                onKeyPress={e => e.key === 'Enter' && (e.preventDefault(), addItem('likes', newLike, setNewLike))}
-                placeholder="Add something you liked..."
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault();
+                    addItemsFromText('likes', newLike, setNewLike);
+                  }
+                }}
+                placeholder="Add things you liked (one per line, or paste multiple lines)..."
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none"
               />
               <button
                 type="button"
-                onClick={() => addItem('likes', newLike, setNewLike)}
-                className="px-3 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200"
+                onClick={() => addItemsFromText('likes', newLike, setNewLike)}
+                className="mt-2 w-full px-3 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 text-sm font-medium"
               >
-                <Plus className="w-4 h-4" />
+                Add (⌘/Ctrl + Enter)
               </button>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -1396,21 +1532,26 @@ function EditListingModal({ listing, onClose, onSave, onDelete }) {
             <label className="block text-sm font-medium text-amber-700 mb-2 flex items-center gap-1">
               <ThumbsDown className="w-4 h-4" /> Dislikes (But Liveable)
             </label>
-            <div className="flex gap-2 mb-2">
-              <input
-                type="text"
+            <div className="mb-2">
+              <textarea
                 value={newDislike}
                 onChange={e => setNewDislike(e.target.value)}
-                onKeyPress={e => e.key === 'Enter' && (e.preventDefault(), addItem('dislikes', newDislike, setNewDislike))}
-                placeholder="Add a minor issue..."
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault();
+                    addItemsFromText('dislikes', newDislike, setNewDislike);
+                  }
+                }}
+                placeholder="Add minor issues (one per line, or paste multiple lines)..."
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 resize-none"
               />
               <button
                 type="button"
-                onClick={() => addItem('dislikes', newDislike, setNewDislike)}
-                className="px-3 py-2 bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200"
+                onClick={() => addItemsFromText('dislikes', newDislike, setNewDislike)}
+                className="mt-2 w-full px-3 py-2 bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200 text-sm font-medium"
               >
-                <Plus className="w-4 h-4" />
+                Add (⌘/Ctrl + Enter)
               </button>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -1430,21 +1571,26 @@ function EditListingModal({ listing, onClose, onSave, onDelete }) {
             <label className="block text-sm font-medium text-red-700 mb-2 flex items-center gap-1">
               <XCircle className="w-4 h-4" /> Deal Breakers
             </label>
-            <div className="flex gap-2 mb-2">
-              <input
-                type="text"
+            <div className="mb-2">
+              <textarea
                 value={newDealBreaker}
                 onChange={e => setNewDealBreaker(e.target.value)}
-                onKeyPress={e => e.key === 'Enter' && (e.preventDefault(), addItem('dealBreakers', newDealBreaker, setNewDealBreaker))}
-                placeholder="Add a deal breaker..."
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault();
+                    addItemsFromText('dealBreakers', newDealBreaker, setNewDealBreaker);
+                  }
+                }}
+                placeholder="Add deal breakers (one per line, or paste multiple lines)..."
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 resize-none"
               />
               <button
                 type="button"
-                onClick={() => addItem('dealBreakers', newDealBreaker, setNewDealBreaker)}
-                className="px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
+                onClick={() => addItemsFromText('dealBreakers', newDealBreaker, setNewDealBreaker)}
+                className="mt-2 w-full px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 text-sm font-medium"
               >
-                <Plus className="w-4 h-4" />
+                Add (⌘/Ctrl + Enter)
               </button>
             </div>
             <div className="flex flex-wrap gap-2">
