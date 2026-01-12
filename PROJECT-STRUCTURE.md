@@ -1,9 +1,11 @@
 # Project Structure
 
 ## Overview
+
 SF House Hunter is a house hunting tracker application for San Francisco with map visualization. It consists of a React web application and a Chrome extension that parses Zillow listings.
 
 ## Tech Stack
+
 - **Frontend**: React 18, Vite, TailwindCSS
 - **UI Components**: Lucide React icons
 - **Maps**: Leaflet.js (OpenStreetMap)
@@ -57,7 +59,9 @@ house-view/
 ### Web Application (`src/`)
 
 #### `App.jsx`
+
 Main application component containing:
+
 - **State Management**: Listings, modals, view mode (map/list), selected listing
 - **Map Integration**: Leaflet map with custom markers for listings
 - **Components**:
@@ -73,23 +77,30 @@ Main application component containing:
   - Geocodes addresses using Nominatim API
 
 #### `storage.js`
+
 Simple IndexedDB wrapper providing:
+
 - `storage.get(key)` - Get value by key
 - `storage.set(key, value)` - Set key-value pair
 - Uses `house-hunter` database and `keyval` object store
 
 #### `zillowParser.js`
+
 Zillow data extraction utilities:
+
 - `extractFromZillowUrl(url)` - Extract address from URL structure
 - `parseZillowListing(url)` - Fetch and parse Zillow page (may fail due to CORS)
 
 #### `extensionReceiver.js`
+
 Legacy file - No longer actively used. Originally set up window message listener for extension data before the bridge pattern was implemented.
 
 ### Chrome Extension (`chrome-extension/`)
 
 #### `manifest.json`
+
 Chrome extension configuration:
+
 - **Permissions**: `activeTab`, `scripting`, `storage`
 - **Host Permissions**: Zillow pages and localhost:3000
 - **Content Scripts**:
@@ -97,7 +108,9 @@ Chrome extension configuration:
   - `app-bridge.js` - Runs on localhost:3000 (bridges extension ↔ web app)
 
 #### `popup.js`
+
 Extension popup logic:
+
 - Detects if current tab is a Zillow listing
 - Sends message to `content.js` to extract data
 - Displays preview of extracted data
@@ -107,13 +120,17 @@ Extension popup logic:
 - Copy to clipboard functionality
 
 #### `content.js`
+
 Content script injected into Zillow pages:
+
 - Listens for `extractData` messages from popup
 - Scrapes listing data from Zillow DOM
 - Returns structured data (address, price, beds, baths, sqft, URL)
 
 #### `app-bridge.js`
+
 Bridge content script for localhost:3000:
+
 - Has access to both Chrome extension APIs and web page context
 - Listens for messages from popup via `chrome.runtime.onMessage`
 - Checks `chrome.storage.local` for pending listings on page load
@@ -123,6 +140,7 @@ Bridge content script for localhost:3000:
 ## Data Flow: Extension → Web App
 
 ### Scenario 1: App Already Open
+
 1. User clicks "Send to App" in extension popup
 2. `popup.js` sends message to `app-bridge.js` via `chrome.tabs.sendMessage`
 3. `app-bridge.js` receives message and forwards data via `window.postMessage`
@@ -130,6 +148,7 @@ Bridge content script for localhost:3000:
 5. Opens add modal with pre-filled form
 
 ### Scenario 2: App Not Open
+
 1. User clicks "Send to App" in extension popup
 2. `popup.js` saves data to `chrome.storage.local`
 3. `popup.js` opens new tab to `http://localhost:3000`
@@ -142,6 +161,7 @@ Bridge content script for localhost:3000:
 ## Data Models
 
 ### Listing Object
+
 ```javascript
 {
   id: string,              // Timestamp-based unique ID
@@ -165,6 +185,7 @@ Bridge content script for localhost:3000:
 ```
 
 ### Extension Data Message
+
 ```javascript
 {
   source: 'house-hunter-extension',
