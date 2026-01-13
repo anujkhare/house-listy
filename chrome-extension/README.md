@@ -21,7 +21,20 @@ This Chrome extension extracts listing data from Zillow pages while you're logge
    ```
 5. The extension should now appear in your extensions list
 
-### Step 3: Pin the Extension (Optional but Recommended)
+### Step 3: Configure App URL
+
+**IMPORTANT:** After installation, you need to configure where your app is running.
+
+1. Right-click the extension icon and select "Options"
+   - Or go to `chrome://extensions/`, find the extension, and click "Extension options"
+2. Enter your app URL:
+   - For local development: `http://localhost:3000`
+   - For Railway deployment: `https://your-app.railway.app`
+   - For custom domain: `https://your-domain.com`
+3. Click "Save Settings"
+4. **Reload the extension** by going to `chrome://extensions/` and clicking the refresh icon
+
+### Step 4: Pin the Extension (Optional but Recommended)
 
 1. Click the puzzle piece icon in Chrome toolbar
 2. Find "SF House Hunter - Zillow Parser"
@@ -31,11 +44,9 @@ This Chrome extension extracts listing data from Zillow pages while you're logge
 
 ### Method 1: Direct Send to App (Easiest)
 
-1. **Make sure your House Tracker app is running:**
-   ```bash
-   cd /Users/anuj/Desktop/code/house-view
-   npm start
-   ```
+1. **Make sure your House Tracker app is accessible:**
+   - For local development: Run `npm start` in the project directory
+   - For Railway/production: Open your deployed app URL in a browser tab
 
 2. **Navigate to any Zillow listing page** while logged into Zillow
    - Example: https://www.zillow.com/homedetails/123-Main-St-San-Francisco-CA-94102/12345678_zpid/
@@ -47,7 +58,8 @@ This Chrome extension extracts listing data from Zillow pages while you're logge
    - You'll see a preview of extracted data
 
 5. **Click "Send to House Tracker App"**
-   - Data is saved and the app opens automatically
+   - If app is already open: Data is sent directly to that tab
+   - If app is not open: A new tab opens automatically with the data
    - The "Add Listing" form will be pre-filled with the data
    - Review and click "Add Listing" to save
 
@@ -99,11 +111,15 @@ The **Chrome extension succeeds** because:
 - Try removing and re-adding the extension
 
 ### "Could not reach House Tracker App"
-- Make sure you ran `npm start` in the project directory
-- App must be running on `http://localhost:3000`
-- Check that no firewall is blocking localhost
+
+- Make sure your app is accessible (running locally or deployed)
+- Verify the app URL is correctly configured in extension options
+- For localhost: Make sure you ran `npm start` in the project directory
+- For Railway: Check that your deployment is active
+- Check that no firewall is blocking connections
 
 ### Data not auto-filling in app
+
 - The extension saves data to Chrome storage
 - Reload the app page if it doesn't auto-open
 - Check browser console for errors (F12)
@@ -116,9 +132,12 @@ The **Chrome extension succeeds** because:
 chrome-extension/
 ├── manifest.json       # Extension configuration
 ├── popup.html          # Extension popup UI
-├── popup.js            # Popup logic
+├── popup.js            # Popup logic (dynamic URL support)
+├── options.html        # Settings page for app URL configuration
+├── options.js          # Settings page logic
 ├── content.js          # Runs on Zillow pages, extracts data
-├── background.js       # Background service worker
+├── app-bridge.js       # Injected into app pages for communication
+├── background.js       # Background service worker (dynamic script injection)
 ├── icon16.png          # Extension icon (16x16)
 ├── icon48.png          # Extension icon (48x48)
 ├── icon128.png         # Extension icon (128x128)
@@ -128,20 +147,38 @@ chrome-extension/
 
 ### How It Works
 
-1. **content.js** runs on every Zillow listing page
-   - Extracts data from the DOM
-   - Stores it in Chrome storage
-   - Waits for popup to request data
+1. **options.js** manages configuration
+   - Saves app URL to Chrome sync storage
+   - Validates URL format
+   - Notifies background script of changes
 
-2. **popup.js** shows the extension UI
+2. **background.js** manages dynamic script injection
+   - Sets default app URL on installation
+   - Monitors tab updates
+   - Injects app-bridge.js into tabs matching the configured app URL
+   - Handles URL updates from settings
+
+3. **content.js** runs on every Zillow listing page
+   - Extracts data from the DOM
+   - Responds to messages from popup
+   - Returns structured listing data
+
+4. **popup.js** shows the extension UI
+   - Loads app URL from settings
    - Requests data from content script
    - Displays preview
-   - Saves to Chrome storage when "Send" is clicked
+   - Finds or opens app tab using dynamic URL
+   - Sends data to app-bridge.js or saves to Chrome storage
 
-3. **Main app** checks Chrome storage on load
-   - Finds pending listing data
+5. **app-bridge.js** runs in the app page context
+   - Listens for messages from popup
+   - Checks Chrome storage for pending listings
+   - Forwards data to web page via window.postMessage
+   - Clears pending data after forwarding
+
+6. **Main app** receives data
+   - Listens for window postMessage events
    - Opens add modal with pre-filled data
-   - Clears pending data after import
 
 ### Updating the Extension
 

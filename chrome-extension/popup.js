@@ -1,4 +1,5 @@
 let extractedData = null;
+let appUrl = 'http://localhost:3000'; // Default
 
 // DOM elements
 const extractBtn = document.getElementById('extractBtn');
@@ -8,6 +9,13 @@ const loading = document.getElementById('loading');
 const success = document.getElementById('success');
 const notZillow = document.getElementById('notZillow');
 const dataPreview = document.getElementById('dataPreview');
+
+// Load app URL from settings
+chrome.storage.sync.get(['appUrl'], (result) => {
+  if (result.appUrl) {
+    appUrl = result.appUrl;
+  }
+});
 
 // Check if we're on a Zillow page
 chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -77,12 +85,17 @@ sendBtn.addEventListener('click', async () => {
   success.textContent = '✅ Sending to app...';
   success.classList.remove('hidden');
 
-  // Find or open the app
-  const tabs = await chrome.tabs.query({ url: 'http://localhost:3000/*' });
+  // Ensure we have the latest app URL
+  const settings = await chrome.storage.sync.get(['appUrl']);
+  const currentAppUrl = settings.appUrl || appUrl;
 
-  if (tabs.length > 0) {
+  // Find tabs matching the app URL
+  const tabs = await chrome.tabs.query({});
+  const appTabs = tabs.filter(tab => tab.url && tab.url.startsWith(currentAppUrl));
+
+  if (appTabs.length > 0) {
     // App is already open - send message directly to the bridge content script
-    chrome.tabs.sendMessage(tabs[0].id, {
+    chrome.tabs.sendMessage(appTabs[0].id, {
       action: 'sendListingData',
       data: extractedData
     }, (response) => {
@@ -90,11 +103,11 @@ sendBtn.addEventListener('click', async () => {
         console.error('Error sending message:', chrome.runtime.lastError);
         // Fallback: save to storage and reload
         chrome.storage.local.set({ pendingListing: extractedData }, () => {
-          chrome.tabs.reload(tabs[0].id);
-          chrome.tabs.update(tabs[0].id, { active: true });
+          chrome.tabs.reload(appTabs[0].id);
+          chrome.tabs.update(appTabs[0].id, { active: true });
         });
       } else {
-        chrome.tabs.update(tabs[0].id, { active: true });
+        chrome.tabs.update(appTabs[0].id, { active: true });
       }
     });
 
@@ -103,7 +116,7 @@ sendBtn.addEventListener('click', async () => {
   } else {
     // App is not open - save to storage and open new tab
     chrome.storage.local.set({ pendingListing: extractedData }, () => {
-      chrome.tabs.create({ url: 'http://localhost:3000' });
+      chrome.tabs.create({ url: currentAppUrl });
 
       // Close popup after 1 second
       setTimeout(() => window.close(), 1000);

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SF House Hunter - Settings</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      max-width: 600px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    h1 {
+      color: #333;
+      margin-top: 0;
+      font-size: 24px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      color: #555;
+      font-weight: 500;
+    }
+
+    input[type="url"] {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+
+    input[type="url"]:focus {
+      outline: none;
+      border-color: #4CAF50;
+    }
+
+    .help-text {
+      font-size: 12px;
+      color: #777;
+      margin-top: 5px;
+    }
+
+    .example {
+      background: #f9f9f9;
+      padding: 10px;
+      border-left: 3px solid #4CAF50;
+      margin: 10px 0;
+      font-size: 13px;
+    }
+
+    .example strong {
+      color: #333;
+    }
+
+    button {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      margin-right: 10px;
+    }
+
+    button:hover {
+      background: #45a049;
+    }
+
+    button.secondary {
+      background: #999;
+    }
+
+    button.secondary:hover {
+      background: #777;
+    }
+
+    .status {
+      margin-top: 15px;
+      padding: 10px;
+      border-radius: 4px;
+      display: none;
+    }
+
+    .status.success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+
+    .status.error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+
+    .warning {
+      background: #fff3cd;
+      color: #856404;
+      padding: 12px;
+      border-radius: 4px;
+      border: 1px solid #ffeeba;
+      margin-bottom: 20px;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🏠 SF House Hunter Settings</h1>
+
+    <div class="warning">
+      <strong>⚠️ Important:</strong> After changing the app URL, you need to reload the extension for content scripts to work on the new domain.
+    </div>
+
+    <div class="form-group">
+      <label for="appUrl">App URL</label>
+      <input
+        type="url"
+        id="appUrl"
+        placeholder="https://your-app.railway.app"
+        required
+      >
+      <div class="help-text">
+        Enter the URL where your House Hunter app is deployed
+      </div>
+    </div>
+
+    <div class="example">
+      <strong>Examples:</strong><br>
+      Local development: <code>http://localhost:3000</code><br>
+      Railway deployment: <code>https://house-view-production.up.railway.app</code><br>
+      Custom domain: <code>https://houses.example.com</code>
+    </div>
+
+    <div style="margin-top: 25px;">
+      <button id="saveBtn">Save Settings</button>
+      <button id="resetBtn" class="secondary">Reset to Default</button>
+    </div>
+
+    <div id="status" class="status"></div>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>
