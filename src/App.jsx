@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Home, Plus, X, Eye, EyeOff, Star, Filter, List, Map as MapIcon, Edit2, Trash2, ExternalLink, Check, AlertCircle, Heart, ThumbsDown, XCircle, Download } from 'lucide-react';
+import { MapPin, Home, Plus, X, Eye, EyeOff, Star, Filter, List, Map as MapIcon, Edit2, Trash2, ExternalLink, Check, AlertCircle, Heart, ThumbsDown, XCircle, Download, Upload } from 'lucide-react';
 import './storage';
 import { parseZillowListing, extractFromZillowUrl } from './zillowParser';
 
@@ -98,6 +98,18 @@ export default function HouseHuntingTracker() {
 
     window.addEventListener('message', handleExtensionMessage);
     return () => window.removeEventListener('message', handleExtensionMessage);
+  }, []);
+
+  // Listen for CSV import events
+  useEffect(() => {
+    const handleImportListings = (event) => {
+      const importedListings = event.detail;
+      setListings(prev => [...prev, ...importedListings]);
+      alert(`Successfully imported ${importedListings.length} listings!`);
+    };
+
+    window.addEventListener('importListings', handleImportListings);
+    return () => window.removeEventListener('importListings', handleImportListings);
   }, []);
 
   // Save listings to storage
@@ -795,9 +807,235 @@ function ListingDetail({ listing, onClose, onEdit, onDelete, onToggleVisited, on
 }
 
 function ListView({ listings, onEdit, onDelete, onToggleVisited, onSetSentiment }) {
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+  const fileInputRef = useRef(null);
+
   const formatText = (value) => (value || value === 0 ? value : '—');
   const formatNumber = (value) => (value || value === 0 ? value.toLocaleString() : '—');
   const formatCurrency = (value) => (value || value === 0 ? `$${Number(value).toLocaleString()}` : '—');
+
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const downloadCSV = () => {
+    // Define CSV headers
+    const headers = [
+      'Address', 'Zillow URL', 'Neighborhood', 'Likes', 'Dislikes', 'Deal Breakers',
+      'Price', 'Beds', 'Baths', 'Sqft', 'Price Per Sqft', 'Tax Assessed Value',
+      'Annual Tax Amount', 'Price Range', 'Date on Market', 'Listing Agreement',
+      'Listing Terms', 'Lot Size', 'Total Spaces', 'Garage Spaces', 'Home Type',
+      'Year Built', 'Visited', 'Sentiment', 'Notes'
+    ];
+
+    // Convert listings to CSV rows
+    const rows = listings.map(listing => [
+      listing.address || '',
+      listing.zillowUrl || '',
+      listing.neighborhood || '',
+      listing.likes?.join('; ') || '',
+      listing.dislikes?.join('; ') || '',
+      listing.dealBreakers?.join('; ') || '',
+      listing.price || '',
+      listing.beds || '',
+      listing.baths || '',
+      listing.sqft || '',
+      listing.pricePerSqft || '',
+      listing.taxAssessedValue || '',
+      listing.annualTaxAmount || '',
+      listing.priceRange || '',
+      listing.dateOnMarket || '',
+      listing.listingAgreement || '',
+      listing.listingTerms || '',
+      listing.lotSize || '',
+      listing.totalSpaces || '',
+      listing.garageSpaces || '',
+      listing.homeType || '',
+      listing.yearBuilt || '',
+      listing.visited ? 'Yes' : 'No',
+      listing.sentiment || '',
+      listing.notes || ''
+    ]);
+
+    // Escape CSV fields
+    const escapeCSV = (field) => {
+      const str = String(field);
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    // Build CSV content
+    const csvContent = [
+      headers.map(escapeCSV).join(','),
+      ...rows.map(row => row.map(escapeCSV).join(','))
+    ].join('\n');
+
+    // Create download link
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `house-listings-${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target.result;
+        const lines = text.split('\n');
+
+        if (lines.length < 2) {
+          alert('CSV file is empty or invalid');
+          return;
+        }
+
+        // Skip header row
+        const dataLines = lines.slice(1).filter(line => line.trim());
+
+        // Parse CSV (simple parser - handles quoted fields)
+        const parseCSVLine = (line) => {
+          const fields = [];
+          let field = '';
+          let inQuotes = false;
+
+          for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+
+            if (char === '"') {
+              if (inQuotes && line[i + 1] === '"') {
+                field += '"';
+                i++;
+              } else {
+                inQuotes = !inQuotes;
+              }
+            } else if (char === ',' && !inQuotes) {
+              fields.push(field);
+              field = '';
+            } else {
+              field += char;
+            }
+          }
+          fields.push(field);
+          return fields;
+        };
+
+        const importedListings = dataLines.map(line => {
+          const fields = parseCSVLine(line);
+          return {
+            id: Date.now().toString() + Math.random().toString(36).substring(2, 11),
+            address: fields[0] || '',
+            zillowUrl: fields[1] || '',
+            neighborhood: fields[2] || '',
+            likes: fields[3] ? fields[3].split('; ').filter(x => x) : [],
+            dislikes: fields[4] ? fields[4].split('; ').filter(x => x) : [],
+            dealBreakers: fields[5] ? fields[5].split('; ').filter(x => x) : [],
+            price: fields[6] ? parseInt(fields[6]) : null,
+            beds: fields[7] ? parseInt(fields[7]) : null,
+            baths: fields[8] ? parseFloat(fields[8]) : null,
+            sqft: fields[9] ? parseInt(fields[9]) : null,
+            pricePerSqft: fields[10] ? parseInt(fields[10]) : null,
+            taxAssessedValue: fields[11] || null,
+            annualTaxAmount: fields[12] || null,
+            priceRange: fields[13] || '',
+            dateOnMarket: fields[14] || '',
+            listingAgreement: fields[15] || '',
+            listingTerms: fields[16] || '',
+            lotSize: fields[17] || '',
+            totalSpaces: fields[18] ? parseInt(fields[18]) : null,
+            garageSpaces: fields[19] ? parseInt(fields[19]) : null,
+            homeType: fields[20] || '',
+            yearBuilt: fields[21] ? parseInt(fields[21]) : null,
+            visited: fields[22] === 'Yes',
+            sentiment: fields[23] || null,
+            notes: fields[24] || '',
+            lat: null,
+            lng: null,
+            createdAt: new Date().toISOString()
+          };
+        });
+
+        if (confirm(`Import ${importedListings.length} listings from CSV? This will add them to your existing listings.`)) {
+          // Trigger a custom event to add listings
+          window.dispatchEvent(new CustomEvent('importListings', {
+            detail: importedListings
+          }));
+        }
+      } catch (error) {
+        console.error('Error parsing CSV:', error);
+        alert('Error parsing CSV file. Please check the format.');
+      }
+    };
+
+    reader.readAsText(file);
+    // Reset input so the same file can be uploaded again
+    event.target.value = '';
+  };
+
+  const getSortedListings = () => {
+    if (!sortConfig.key) return listings;
+
+    const sorted = [...listings].sort((a, b) => {
+      let aVal = a[sortConfig.key];
+      let bVal = b[sortConfig.key];
+
+      // Handle null/undefined values
+      if (aVal == null && bVal == null) return 0;
+      if (aVal == null) return 1;
+      if (bVal == null) return -1;
+
+      // Handle array fields (likes, dislikes, dealBreakers)
+      if (Array.isArray(aVal)) {
+        aVal = aVal.length;
+        bVal = bVal.length;
+      }
+
+      // Handle boolean fields (visited)
+      if (typeof aVal === 'boolean') {
+        aVal = aVal ? 1 : 0;
+        bVal = bVal ? 1 : 0;
+      }
+
+      // Handle string comparison (case-insensitive)
+      if (typeof aVal === 'string') {
+        aVal = aVal.toLowerCase();
+        bVal = bVal.toLowerCase();
+      }
+
+      if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+    return sorted;
+  };
+
+  const SortableHeader = ({ label, sortKey }) => (
+    <th
+      className="px-3 py-2 font-medium cursor-pointer hover:bg-gray-100 transition select-none"
+      onClick={() => handleSort(sortKey)}
+    >
+      <div className="flex items-center gap-1">
+        {label}
+        {sortConfig.key === sortKey && (
+          <span className="text-xs">
+            {sortConfig.direction === 'asc' ? '▲' : '▼'}
+          </span>
+        )}
+      </div>
+    </th>
+  );
 
   if (listings.length === 0) {
     return (
@@ -811,49 +1049,103 @@ function ListView({ listings, onEdit, onDelete, onToggleVisited, onSetSentiment 
     );
   }
 
+  const sortedListings = getSortedListings();
+
   return (
     <div className="flex-1 overflow-auto p-4">
       <div className="bg-white border border-gray-200 rounded-xl">
+        {/* CSV Import/Export Controls */}
+        <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+          <div className="text-sm text-gray-600">
+            {listings.length} listing{listings.length !== 1 ? 's' : ''}
+            {sortConfig.key && (
+              <span className="ml-2 text-gray-400">
+                • Sorted by {sortConfig.key} ({sortConfig.direction === 'asc' ? 'ascending' : 'descending'})
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={downloadCSV}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition"
+              title="Download listings as CSV"
+            >
+              <Download className="w-4 h-4" />
+              Export CSV
+            </button>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition"
+              title="Import listings from CSV"
+            >
+              <Upload className="w-4 h-4" />
+              Import CSV
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+          </div>
+        </div>
         <div className="overflow-x-auto">
           <table className="min-w-[2200px] text-left text-sm">
             <thead className="bg-gray-50 text-gray-600 sticky top-0 z-10">
               <tr>
-                <th className="px-3 py-2 font-medium">Address</th>
-                <th className="px-3 py-2 font-medium">Neighborhood</th>
-                <th className="px-3 py-2 font-medium">Likes</th>
-                <th className="px-3 py-2 font-medium">Dislikes</th>
-                <th className="px-3 py-2 font-medium">Deal Breakers</th>
-                <th className="px-3 py-2 font-medium">Price</th>
-                <th className="px-3 py-2 font-medium">Beds</th>
-                <th className="px-3 py-2 font-medium">Baths</th>
-                <th className="px-3 py-2 font-medium">Sqft</th>
-                <th className="px-3 py-2 font-medium">$/Sqft</th>
-                <th className="px-3 py-2 font-medium">Tax Assessed</th>
-                <th className="px-3 py-2 font-medium">Annual Tax</th>
-                <th className="px-3 py-2 font-medium">Price Range</th>
-                <th className="px-3 py-2 font-medium">Date on Market</th>
-                <th className="px-3 py-2 font-medium">Listing Agreement</th>
-                <th className="px-3 py-2 font-medium">Listing Terms</th>
-                <th className="px-3 py-2 font-medium">Lot Size</th>
-                <th className="px-3 py-2 font-medium">Total Spaces</th>
-                <th className="px-3 py-2 font-medium">Garage Spaces</th>
-                <th className="px-3 py-2 font-medium">Home Type</th>
-                <th className="px-3 py-2 font-medium">Year Built</th>
-                <th className="px-3 py-2 font-medium">Visited</th>
-                <th className="px-3 py-2 font-medium">Sentiment</th>
+                <SortableHeader label="Address" sortKey="address" />
                 <th className="px-3 py-2 font-medium">Zillow</th>
-                <th className="px-3 py-2 font-medium">Notes</th>
+                <SortableHeader label="Neighborhood" sortKey="neighborhood" />
+                <SortableHeader label="Likes" sortKey="likes" />
+                <SortableHeader label="Dislikes" sortKey="dislikes" />
+                <SortableHeader label="Deal Breakers" sortKey="dealBreakers" />
+                <SortableHeader label="Price" sortKey="price" />
+                <SortableHeader label="Beds" sortKey="beds" />
+                <SortableHeader label="Baths" sortKey="baths" />
+                <SortableHeader label="Sqft" sortKey="sqft" />
+                <SortableHeader label="$/Sqft" sortKey="pricePerSqft" />
+                <SortableHeader label="Tax Assessed" sortKey="taxAssessedValue" />
+                <SortableHeader label="Annual Tax" sortKey="annualTaxAmount" />
+                <SortableHeader label="Price Range" sortKey="priceRange" />
+                <SortableHeader label="Date on Market" sortKey="dateOnMarket" />
+                <SortableHeader label="Listing Agreement" sortKey="listingAgreement" />
+                <SortableHeader label="Listing Terms" sortKey="listingTerms" />
+                <SortableHeader label="Lot Size" sortKey="lotSize" />
+                <SortableHeader label="Total Spaces" sortKey="totalSpaces" />
+                <SortableHeader label="Garage Spaces" sortKey="garageSpaces" />
+                <SortableHeader label="Home Type" sortKey="homeType" />
+                <SortableHeader label="Year Built" sortKey="yearBuilt" />
+                <SortableHeader label="Visited" sortKey="visited" />
+                <SortableHeader label="Sentiment" sortKey="sentiment" />
+                <SortableHeader label="Notes" sortKey="notes" />
                 <th className="px-3 py-2 font-medium text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="text-gray-700">
-              {listings.map(listing => (
+              {sortedListings.map(listing => (
                 <tr
                   key={listing.id}
                   className="border-t border-gray-100 hover:bg-blue-50/40 cursor-pointer"
                   onClick={() => onEdit(listing)}
                 >
                   <td className="px-3 py-2 font-medium text-gray-900 whitespace-nowrap">{formatText(listing.address)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    {listing.zillowUrl ? (
+                      <a
+                        href={listing.zillowUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700"
+                        onClick={event => event.stopPropagation()}
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        <span className="text-xs">Open</span>
+                      </a>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
                   <td className="px-3 py-2 whitespace-nowrap">{formatText(listing.neighborhood)}</td>
                   <td className="px-3 py-2 whitespace-pre-line max-w-xs">
                     {listing.likes?.length ? listing.likes.join('\n') : '—'}
@@ -900,22 +1192,6 @@ function ListView({ listings, onEdit, onDelete, onToggleVisited, onSetSentiment 
                       </span>
                     ) : (
                       <span className="text-gray-400">—</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 whitespace-nowrap">
-                    {listing.zillowUrl ? (
-                      <a
-                        href={listing.zillowUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700"
-                        onClick={event => event.stopPropagation()}
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                        <span className="text-xs">Open</span>
-                      </a>
-                    ) : (
-                      '—'
                     )}
                   </td>
                   <td className="px-3 py-2 max-w-[240px] truncate" title={formatText(listing.notes)}>
