@@ -20,6 +20,7 @@ npm start
 The app will open automatically at `http://localhost:3000`
 
 **Look for these messages:**
+
 ```
 🚀 Proxy server running on http://localhost:3001
    Ready to fetch Zillow listings!
@@ -47,7 +48,7 @@ VITE ready in XXXms
 
 ## Daily Workflow
 
-### Morning/Afternoon/Evening Zillow Check:
+### Morning/Afternoon/Evening Zillow Check
 
 1. Open Zillow with your saved search
 2. For each new promising listing:
@@ -57,7 +58,7 @@ VITE ready in XXXms
    - Paste URL and click "Auto-fill"
    - Save it
 
-### After a Viewing:
+### After a Viewing
 
 1. Find the property on the map or list
 2. Click "Edit" (pencil icon)
@@ -68,7 +69,7 @@ VITE ready in XXXms
 4. Mark as "Visited"
 5. Save
 
-### Comparing Properties:
+### Comparing Properties
 
 - **Map view**: See all properties geographically
 - **List view**: Compare prices, features side-by-side
@@ -82,15 +83,18 @@ Press `Ctrl+C` in the terminal where you ran `npm start`
 ## Common Issues
 
 **Auto-fill not working?**
+
 - Make sure you ran `npm start` (not just `npm run dev`)
 - Check that you see "Proxy server running" in terminal
 - The URL must be from zillow.com
 
 **Map not showing?**
+
 - Check your internet connection
 - Refresh the page
 
 **Lost your data?**
+
 - Data is saved in browser localStorage
 - Don't clear browser cache
 - Use the same browser each time

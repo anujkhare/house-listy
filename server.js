@@ -1,16 +1,126 @@
 import express from 'express';
 import cors from 'cors';
 import fetch from 'node-fetch';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import fs from 'fs/promises';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 
-// Enable CORS for our frontend
+// Basic Auth credentials from environment variables
+const AUTH_USERNAME = process.env.AUTH_USERNAME || 'admin';
+const AUTH_PASSWORD = process.env.AUTH_PASSWORD || 'changeme';
+
+// Basic Auth middleware
+const basicAuth = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith('Basic ')) {
+    res.setHeader('WWW-Authenticate', 'Basic realm="House Hunter"');
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  const base64Credentials = authHeader.split(' ')[1];
+  const credentials = Buffer.from(base64Credentials, 'base64').toString('ascii');
+  const [username, password] = credentials.split(':');
+
+  if (username === AUTH_USERNAME && password === AUTH_PASSWORD) {
+    next();
+  } else {
+    res.setHeader('WWW-Authenticate', 'Basic realm="House Hunter"');
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+};
+
+// Enable CORS for development and production
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5173', // Vite default dev port
+  process.env.FRONTEND_URL
+].filter(Boolean);
+
 app.use(cors({
-  origin: 'http://localhost:3000'
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(null, true); // Allow all origins in production since we have auth
+    }
+  },
+  credentials: true
 }));
 
 app.use(express.json());
+
+// Storage file path
+const STORAGE_FILE = join(__dirname, 'data', 'listings.json');
+
+// Ensure data directory exists
+async function ensureDataDir() {
+  try {
+    await fs.mkdir(join(__dirname, 'data'), { recursive: true });
+    // Initialize with empty object if file doesn't exist
+    try {
+      await fs.access(STORAGE_FILE);
+    } catch {
+      await fs.writeFile(STORAGE_FILE, JSON.stringify({}));
+    }
+  } catch (error) {
+    console.error('Error creating data directory:', error);
+  }
+}
+
+ensureDataDir();
+
+// Apply auth to all API routes
+app.use('/api', basicAuth);
+
+// Storage API endpoints
+app.get('/api/storage/:key', async (req, res) => {
+  try {
+    const data = JSON.parse(await fs.readFile(STORAGE_FILE, 'utf8'));
+    const value = data[req.params.key];
+
+    if (value !== undefined) {
+      res.json({ value });
+    } else {
+      res.status(404).json({ error: 'Key not found' });
+    }
+  } catch (error) {
+    console.error('Error reading storage:', error);
+    res.status(500).json({ error: 'Failed to read storage' });
+  }
+});
+
+app.post('/api/storage/:key', async (req, res) => {
+  try {
+    const data = JSON.parse(await fs.readFile(STORAGE_FILE, 'utf8'));
+    data[req.params.key] = req.body.value;
+    await fs.writeFile(STORAGE_FILE, JSON.stringify(data, null, 2));
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error writing storage:', error);
+    res.status(500).json({ error: 'Failed to write storage' });
+  }
+});
+
+app.delete('/api/storage/:key', async (req, res) => {
+  try {
+    const data = JSON.parse(await fs.readFile(STORAGE_FILE, 'utf8'));
+    delete data[req.params.key];
+    await fs.writeFile(STORAGE_FILE, JSON.stringify(data, null, 2));
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting from storage:', error);
+    res.status(500).json({ error: 'Failed to delete from storage' });
+  }
+});
 
 // Proxy endpoint to fetch Zillow pages
 app.get('/api/fetch-zillow', async (req, res) => {
@@ -152,7 +262,21 @@ function extractZillowData(html) {
   return data;
 }
 
+// Serve static files from dist directory in production
+const distPath = join(__dirname, 'dist');
+
+// Apply basic auth to the frontend
+app.use(basicAuth);
+
+app.use(express.static(distPath));
+
+// Serve index.html for all non-API routes (SPA support)
+app.get('*', (_req, res) => {
+  res.sendFile(join(distPath, 'index.html'));
+});
+
 app.listen(PORT, () => {
-  console.log(`🚀 Proxy server running on http://localhost:${PORT}`);
-  console.log(`   Ready to fetch Zillow listings!`);
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`   Auth: ${AUTH_USERNAME} / ${AUTH_PASSWORD === 'changeme' ? '⚠️  DEFAULT PASSWORD' : '✓ custom password'}`);
 });
