@@ -36,3 +36,6 @@ Thumbs.db
 
 # Data storage
 data/
+
+# Firebase credentials
+firebase-service-account.json

@@ -4,12 +4,17 @@ import fetch from 'node-fetch';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import fs from 'fs/promises';
+import { getFirestore } from './firebase-config.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Initialize Firestore
+const db = getFirestore();
+const COLLECTION_NAME = 'storage';
 
 // Basic Auth credentials from environment variables
 const AUTH_USERNAME = process.env.AUTH_USERNAME || 'admin';
@@ -81,16 +86,29 @@ ensureDataDir();
 // Apply auth to all API routes
 app.use('/api', basicAuth);
 
-// Storage API endpoints
+// Storage API endpoints with Firestore (fallback to file storage)
 app.get('/api/storage/:key', async (req, res) => {
   try {
-    const data = JSON.parse(await fs.readFile(STORAGE_FILE, 'utf8'));
-    const value = data[req.params.key];
+    // Try Firestore first
+    if (db) {
+      const docRef = db.collection(COLLECTION_NAME).doc(req.params.key);
+      const doc = await docRef.get();
 
-    if (value !== undefined) {
-      res.json({ value });
+      if (doc.exists) {
+        res.json({ value: doc.data().value });
+      } else {
+        res.status(404).json({ error: 'Key not found' });
+      }
     } else {
-      res.status(404).json({ error: 'Key not found' });
+      // Fallback to file storage
+      const data = JSON.parse(await fs.readFile(STORAGE_FILE, 'utf8'));
+      const value = data[req.params.key];
+
+      if (value !== undefined) {
+        res.json({ value });
+      } else {
+        res.status(404).json({ error: 'Key not found' });
+      }
     }
   } catch (error) {
     console.error('Error reading storage:', error);
@@ -100,10 +118,21 @@ app.get('/api/storage/:key', async (req, res) => {
 
 app.post('/api/storage/:key', async (req, res) => {
   try {
-    const data = JSON.parse(await fs.readFile(STORAGE_FILE, 'utf8'));
-    data[req.params.key] = req.body.value;
-    await fs.writeFile(STORAGE_FILE, JSON.stringify(data, null, 2));
-    res.json({ success: true });
+    // Try Firestore first
+    if (db) {
+      const docRef = db.collection(COLLECTION_NAME).doc(req.params.key);
+      await docRef.set({
+        value: req.body.value,
+        updatedAt: new Date().toISOString()
+      });
+      res.json({ success: true });
+    } else {
+      // Fallback to file storage
+      const data = JSON.parse(await fs.readFile(STORAGE_FILE, 'utf8'));
+      data[req.params.key] = req.body.value;
+      await fs.writeFile(STORAGE_FILE, JSON.stringify(data, null, 2));
+      res.json({ success: true });
+    }
   } catch (error) {
     console.error('Error writing storage:', error);
     res.status(500).json({ error: 'Failed to write storage' });
@@ -112,10 +141,18 @@ app.post('/api/storage/:key', async (req, res) => {
 
 app.delete('/api/storage/:key', async (req, res) => {
   try {
-    const data = JSON.parse(await fs.readFile(STORAGE_FILE, 'utf8'));
-    delete data[req.params.key];
-    await fs.writeFile(STORAGE_FILE, JSON.stringify(data, null, 2));
-    res.json({ success: true });
+    // Try Firestore first
+    if (db) {
+      const docRef = db.collection(COLLECTION_NAME).doc(req.params.key);
+      await docRef.delete();
+      res.json({ success: true });
+    } else {
+      // Fallback to file storage
+      const data = JSON.parse(await fs.readFile(STORAGE_FILE, 'utf8'));
+      delete data[req.params.key];
+      await fs.writeFile(STORAGE_FILE, JSON.stringify(data, null, 2));
+      res.json({ success: true });
+    }
   } catch (error) {
     console.error('Error deleting from storage:', error);
     res.status(500).json({ error: 'Failed to delete from storage' });

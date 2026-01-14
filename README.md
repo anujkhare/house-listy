@@ -163,24 +163,39 @@ This app is designed to integrate seamlessly with your Zillow browsing workflow:
 
 ## Data Storage
 
-All your data is stored locally in your browser's localStorage. This means:
+### Firebase Firestore (Recommended for Production)
 
-- ✅ Your data is private and never leaves your device
-- ✅ No account or login required
-- ✅ Fast and always available offline
-- ⚠️ Data is specific to this browser - clearing browser data will delete your listings
-- ⚠️ Data won't sync across different browsers or devices
+When deployed (e.g., on Railway), the app uses **Firebase Firestore** for persistent cloud storage:
 
-**Tip**: Periodically export your data by copying it from the browser's localStorage or taking screenshots of important listings.
+- ✅ **Data persists** across container restarts (no data loss)
+- ✅ **Secure** cloud storage with authentication
+- ✅ **Free tier** sufficient for personal use
+- ✅ **Automatic backups** by Firebase
+- ✅ **Access from anywhere** via the deployed URL
+
+**Setup Instructions**: See [FIREBASE-SETUP.md](FIREBASE-SETUP.md) for detailed Firebase configuration.
+
+### Local Development Fallback
+
+When running locally without Firebase configuration:
+
+- Data is stored in a local file (`data/listings.json`)
+- ✅ Fast and simple for development
+- ⚠️ Data is specific to this machine
+- ⚠️ Not suitable for production deployment
+
+**Tip**: Use the CSV export/import feature to backup your data or transfer between environments.
 
 ## Technical Details
 
 - **Frontend**: React 18 with Vite
+- **Backend**: Express.js server
 - **Styling**: Tailwind CSS
 - **Icons**: Lucide React
 - **Maps**: Leaflet with OpenStreetMap tiles
 - **Geocoding**: Nominatim (free, no API key required)
-- **Storage**: Browser localStorage
+- **Database**: Firebase Firestore (production) / Local file storage (development)
+- **Deployment**: Railway-ready with environment variable configuration
 
 ## Troubleshooting
 

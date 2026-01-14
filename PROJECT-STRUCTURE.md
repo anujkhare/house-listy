@@ -7,15 +7,18 @@ SF House Hunter is a house hunting tracker application for San Francisco with ma
 ## Tech Stack
 
 - **Frontend**: React 18, Vite, TailwindCSS
+- **Backend**: Express.js server with Basic Auth
 - **UI Components**: Lucide React icons
 - **Maps**: Leaflet.js (OpenStreetMap)
-- **Storage**: IndexedDB (via custom storage.js wrapper)
+- **Database**: Firebase Firestore (production) / Local file storage (development)
+- **Storage API**: Custom REST API with fallback support
 - **Geocoding**: Nominatim (OpenStreetMap)
 - **Extension**: Chrome Manifest V3
+- **Deployment**: Railway with environment variable configuration
 
 ## Directory Structure
 
-```
+```plaintext
 house-view/
 ├── src/                          # Main React application source
 │   ├── App.jsx                   # Main app component with map/list views, modals
@@ -44,11 +47,13 @@ house-view/
 ├── tailwind.config.js            # Tailwind CSS configuration
 ├── postcss.config.js             # PostCSS configuration
 ├── package.json                  # NPM dependencies and scripts
-├── server.js                     # Express server (if needed for CORS workarounds)
+├── server.js                     # Express server with storage API and auth
+├── firebase-config.js            # Firebase Firestore initialization
 │
 ├── CHANGELOG.md                  # Project changelog
 ├── PROJECT-STRUCTURE.md          # This file
 ├── README.md                     # Project documentation
+├── FIREBASE-SETUP.md             # Firebase configuration guide
 ├── QUICK-START.md                # Quick start guide
 ├── CORS-EXPLANATION.md           # CORS issues explanation
 └── CHROME-EXTENSION-SOLUTION.md  # Extension communication solution docs
@@ -78,11 +83,13 @@ Main application component containing:
 
 #### `storage.js`
 
-Simple IndexedDB wrapper providing:
+Storage API client that communicates with the backend:
 
-- `storage.get(key)` - Get value by key
-- `storage.set(key, value)` - Set key-value pair
-- Uses `house-hunter` database and `keyval` object store
+- `storage.get(key)` - Get value from backend API
+- `storage.set(key, value)` - Save value to backend API
+- `storage.remove(key)` - Delete value from backend API
+- Falls back to localStorage if API is unavailable
+- Automatically handles production vs development URLs
 
 #### `zillowParser.js`
 
@@ -94,6 +101,34 @@ Zillow data extraction utilities:
 #### `extensionReceiver.js`
 
 Legacy file - No longer actively used. Originally set up window message listener for extension data before the bridge pattern was implemented.
+
+### Backend Server (`server.js`)
+
+Express.js server providing:
+
+#### Storage API
+
+- `GET /api/storage/:key` - Retrieve data by key
+- `POST /api/storage/:key` - Save data with key
+- `DELETE /api/storage/:key` - Delete data by key
+- Uses Firestore in production, falls back to local file storage in development
+
+#### Authentication
+
+- Basic Auth middleware for all routes
+- Configurable via `AUTH_USERNAME` and `AUTH_PASSWORD` environment variables
+- Protects both API and static frontend files
+
+#### Zillow Proxy
+
+- `GET /api/fetch-zillow?url=...` - Proxy for fetching Zillow pages (helps with CORS)
+
+#### Firebase Integration (`firebase-config.js`)
+
+- Initializes Firebase Admin SDK with service account credentials
+- Supports both JSON file and environment variable configuration
+- Gracefully falls back if Firebase is not configured
+- Uses `storage` collection in Firestore to store key-value pairs
 
 ### Chrome Extension (`chrome-extension/`)
 
@@ -227,7 +262,7 @@ Bridge content script for localhost:3000:
 - **Add Listings**: Manual entry or via Chrome extension
 - **Edit Listings**: Add likes, dislikes, deal breakers, and notes
 - **Geocoding**: Automatic address → lat/lng conversion
-- **Persistence**: All data stored locally in IndexedDB
+- **Persistence**: Data stored in Firebase Firestore (production) or local file storage (development)
 - **Chrome Extension**: One-click Zillow data extraction
 
 ## Known Limitations
