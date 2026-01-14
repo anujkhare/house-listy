@@ -121,7 +121,9 @@ After setting the `FIREBASE_SERVICE_ACCOUNT` environment variable in Railway:
 2. Railway will automatically redeploy
 3. Check the logs to verify Firebase initialization:
    - You should see: `✓ Firebase initialized with service account`
-   - If you see: `⚠️ No Firebase configuration found`, check your environment variable
+   - If you see: `⚠️ No Firebase configuration found`, see [RAILWAY-FIREBASE-TROUBLESHOOTING.md](RAILWAY-FIREBASE-TROUBLESHOOTING.md)
+
+**Important**: After adding/changing environment variables, Railway should automatically trigger a new deployment. If it doesn't, manually click "Deploy" in the Railway dashboard.
 
 ## Step 7: Verify Data Persistence
 
@@ -150,23 +152,23 @@ If you have access to the Railway container with the old data:
 
 ## Troubleshooting
 
-### "No Firebase configuration found"
+If you see `⚠️ No Firebase configuration found` in your Railway logs, please refer to the comprehensive troubleshooting guide:
 
-- Verify the `FIREBASE_SERVICE_ACCOUNT` environment variable is set
-- Check that the JSON is valid (paste into a JSON validator)
-- Make sure there are no extra quotes around the JSON value
+**→ [RAILWAY-FIREBASE-TROUBLESHOOTING.md](RAILWAY-FIREBASE-TROUBLESHOOTING.md)**
 
-### "Error initializing Firebase"
+This guide covers:
+- How to check if environment variables are set correctly
+- Common JSON formatting issues
+- How to verify Firebase is working
+- Step-by-step debugging process
+- Alternative configuration methods
 
-- Check Railway logs for the specific error message
-- Verify the service account JSON is complete and unmodified
-- Ensure the private key includes `\n` characters (not actual newlines)
+### Quick Checks
 
-### "Permission denied" errors
-
-- Verify Firestore is enabled in Firebase Console
-- Check that the service account has the right permissions
-- Review Firestore security rules
+1. **Variable name must be exact**: `FIREBASE_SERVICE_ACCOUNT` (case-sensitive)
+2. **JSON must be valid**: Use [JSONLint](https://jsonlint.com/) to verify
+3. **No extra quotes**: Paste the JSON directly, without surrounding quotes
+4. **Redeploy**: Railway should auto-deploy after changing variables
 
 ## Cost Considerations
 

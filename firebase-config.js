@@ -8,6 +8,13 @@ export function initializeFirebase() {
   }
 
   try {
+    // Debug: Log environment variable presence (not values)
+    console.log('Firebase config check:', {
+      hasServiceAccount: !!process.env.FIREBASE_SERVICE_ACCOUNT,
+      hasProjectId: !!process.env.FIREBASE_PROJECT_ID,
+      serviceAccountLength: process.env.FIREBASE_SERVICE_ACCOUNT?.length || 0
+    });
+
     // Check if running in production with service account JSON
     if (process.env.FIREBASE_SERVICE_ACCOUNT) {
       const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -17,6 +24,7 @@ export function initializeFirebase() {
       });
 
       console.log('✓ Firebase initialized with service account');
+      console.log(`  Project ID: ${serviceAccount.project_id}`);
     }
     // Fallback for development - use individual environment variables
     else if (process.env.FIREBASE_PROJECT_ID) {
@@ -29,16 +37,19 @@ export function initializeFirebase() {
       });
 
       console.log('✓ Firebase initialized with environment variables');
+      console.log(`  Project ID: ${process.env.FIREBASE_PROJECT_ID}`);
     }
     // If no Firebase config, return null (will use fallback storage)
     else {
       console.log('⚠️  No Firebase configuration found - using local file storage');
+      console.log('   To enable Firebase, set FIREBASE_SERVICE_ACCOUNT environment variable');
       return null;
     }
 
     return firebaseApp;
   } catch (error) {
     console.error('✗ Error initializing Firebase:', error.message);
+    console.error('   This usually means the JSON is malformed or credentials are invalid');
     return null;
   }
 }
