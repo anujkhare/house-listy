@@ -43,6 +43,26 @@ const geocodeAddress = async (address) => {
   }
 };
 
+// Calculate driving distance using OSRM (Open Source Routing Machine)
+const calculateDrivingDistance = async (fromLat, fromLng, toLat, toLng) => {
+  try {
+    const response = await fetch(
+      `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=false`
+    );
+    const data = await response.json();
+
+    if (data && data.routes && data.routes.length > 0) {
+      const distanceInMeters = data.routes[0].distance;
+      const distanceInMiles = (distanceInMeters / 1609.34).toFixed(1); // Convert meters to miles
+      return parseFloat(distanceInMiles);
+    }
+    return null;
+  } catch (error) {
+    console.error('Routing error:', error);
+    return null;
+  }
+};
+
 // San Francisco default center
 const SF_CENTER = { lat: 37.7749, lng: -122.4194 };
 
@@ -60,6 +80,13 @@ export default function HouseHuntingTracker() {
   const mapInstanceRef = useRef(null);
   const markersRef = useRef([]);
 
+  // Frequently visited places (pins)
+  const [pins, setPins] = useState([]);
+  const [showPinsModal, setShowPinsModal] = useState(false);
+  const [editingPin, setEditingPin] = useState(null);
+  const [drivingDistances, setDrivingDistances] = useState({}); // { listingId: { pinId: distanceInMiles } }
+  const pinMarkersRef = useRef([]);
+
   // Load listings from storage
   useEffect(() => {
     const loadListings = async () => {
@@ -74,6 +101,21 @@ export default function HouseHuntingTracker() {
       setIsLoading(false);
     };
     loadListings();
+  }, []);
+
+  // Load pins from storage
+  useEffect(() => {
+    const loadPins = async () => {
+      try {
+        const result = await window.storage.get('house-pins');
+        if (result && result.value) {
+          setPins(JSON.parse(result.value));
+        }
+      } catch (error) {
+        console.log('No existing pins found');
+      }
+    };
+    loadPins();
   }, []);
 
   // Listen for data from Chrome extension via bridge content script
@@ -125,6 +167,30 @@ export default function HouseHuntingTracker() {
       saveListings();
     }
   }, [listings, isLoading]);
+
+  // Save pins to storage
+  useEffect(() => {
+    if (!isLoading) {
+      const savePins = async () => {
+        try {
+          await window.storage.set('house-pins', JSON.stringify(pins));
+        } catch (error) {
+          console.error('Error saving pins:', error);
+        }
+      };
+      savePins();
+    }
+  }, [pins, isLoading]);
+
+  // Calculate driving distances when a listing is selected
+  useEffect(() => {
+    if (selectedListing && pins.length > 0) {
+      // Check if we already have driving distances for this listing
+      if (!drivingDistances[selectedListing.id]) {
+        calculateDrivingDistancesForListing(selectedListing);
+      }
+    }
+  }, [selectedListing, pins]);
 
   // Initialize map
   useEffect(() => {
@@ -290,6 +356,51 @@ export default function HouseHuntingTracker() {
     }
   }, [listings, showVisitedOnly, mapReady]);
 
+  // Update pin markers on map
+  useEffect(() => {
+    if (!mapReady || !mapInstanceRef.current || !window.L) return;
+
+    // Clear existing pin markers
+    pinMarkersRef.current.forEach(marker => marker.remove());
+    pinMarkersRef.current = [];
+
+    // Add pin markers
+    pins.forEach(pin => {
+      if (pin.lat && pin.lng) {
+        // Star icon for pins (frequently visited places)
+        const iconHtml = `<div style="background: #f59e0b; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 2px 10px rgba(0,0,0,0.4);"><svg width="18" height="18" viewBox="0 0 24 24" fill="white" stroke="white" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg></div>`;
+
+        const icon = window.L.divIcon({
+          html: iconHtml,
+          className: 'custom-pin-marker',
+          iconSize: [36, 36],
+          iconAnchor: [18, 36],
+          popupAnchor: [0, -36]
+        });
+
+        const popupContent = `
+          <div style="min-width: 180px;">
+            <div style="font-weight: 600; font-size: 14px; margin-bottom: 4px; color: #111827;">${pin.label}</div>
+            ${pin.address ? `<div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">${pin.address}</div>` : ''}
+            <div style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; background: #fef3c7; color: #92400e; border-radius: 4px; font-size: 11px; font-weight: 500;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+              Frequently Visited
+            </div>
+          </div>
+        `;
+
+        const marker = window.L.marker([pin.lat, pin.lng], { icon })
+          .addTo(mapInstanceRef.current)
+          .bindPopup(popupContent, {
+            maxWidth: 250,
+            className: 'custom-popup'
+          });
+
+        pinMarkersRef.current.push(marker);
+      }
+    });
+  }, [pins, mapReady]);
+
   const handleAddListing = async (formData) => {
     // Use manual coordinates if provided, otherwise geocode
     let lat = formData.lat || null;
@@ -368,6 +479,59 @@ export default function HouseHuntingTracker() {
   const filteredListings = showVisitedOnly
     ? listings.filter(l => l.visited)
     : listings;
+
+  // Pin management functions
+  const handleAddPin = async (pinData) => {
+    const newPin = {
+      id: Date.now().toString(),
+      ...pinData,
+      createdAt: new Date().toISOString()
+    };
+    setPins(prev => [...prev, newPin]);
+    return newPin;
+  };
+
+  const handleEditPin = (id, pinData) => {
+    setPins(prev => prev.map(p => p.id === id ? { ...p, ...pinData } : p));
+  };
+
+  const handleDeletePin = (id) => {
+    if (confirm('Are you sure you want to delete this pin?')) {
+      setPins(prev => prev.filter(p => p.id !== id));
+      // Clear driving distances for this pin
+      setDrivingDistances(prev => {
+        const updated = { ...prev };
+        Object.keys(updated).forEach(listingId => {
+          if (updated[listingId]) {
+            delete updated[listingId][id];
+          }
+        });
+        return updated;
+      });
+      return true;
+    }
+    return false;
+  };
+
+  // Calculate driving distances for a listing to all pins
+  const calculateDrivingDistancesForListing = async (listing) => {
+    if (!listing.lat || !listing.lng || pins.length === 0) return;
+
+    const distances = {};
+    for (const pin of pins) {
+      if (pin.lat && pin.lng) {
+        const distance = await calculateDrivingDistance(listing.lat, listing.lng, pin.lat, pin.lng);
+        if (distance !== null) {
+          distances[pin.id] = distance;
+        }
+      }
+    }
+
+    setDrivingDistances(prev => ({
+      ...prev,
+      [listing.id]: distances
+    }));
+  };
 
   const fixMissingCoordinates = async () => {
     const listingsWithoutCoords = listings.filter(l => !l.lat || !l.lng);
@@ -461,12 +625,20 @@ export default function HouseHuntingTracker() {
             {showVisitedOnly ? 'Visited Only' : 'All Listings'}
           </button>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition"
-        >
-          <Plus className="w-4 h-4" /> Add Listing
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowPinsModal(true)}
+            className="flex items-center gap-1.5 px-4 py-1.5 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition"
+          >
+            <Star className="w-4 h-4" /> My Places
+          </button>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition"
+          >
+            <Plus className="w-4 h-4" /> Add Listing
+          </button>
+        </div>
       </div>
 
       {/* Main Content */}
@@ -492,6 +664,8 @@ export default function HouseHuntingTracker() {
                 onDelete={() => handleDeleteListing(selectedListing.id)}
                 onToggleVisited={() => toggleVisited(selectedListing.id)}
                 onSetSentiment={(sentiment) => setSentiment(selectedListing.id, sentiment)}
+                pins={pins}
+                drivingDistances={drivingDistances[selectedListing.id] || {}}
               />
             )}
           </>
@@ -516,7 +690,7 @@ export default function HouseHuntingTracker() {
 
       {/* Edit Modal */}
       {showEditModal && editingListing && (
-        <EditListingModal 
+        <EditListingModal
           listing={editingListing}
           onClose={() => { setShowEditModal(false); setEditingListing(null); }}
           onSave={handleUpdateListing}
@@ -530,6 +704,17 @@ export default function HouseHuntingTracker() {
         />
       )}
 
+      {/* Pins Modal */}
+      {showPinsModal && (
+        <PinsModal
+          onClose={() => setShowPinsModal(false)}
+          pins={pins}
+          onAddPin={handleAddPin}
+          onEditPin={handleEditPin}
+          onDeletePin={handleDeletePin}
+        />
+      )}
+
       <style>{`
         .custom-marker { background: transparent !important; border: none !important; }
         .leaflet-popup-content-wrapper { border-radius: 12px; }
@@ -538,7 +723,7 @@ export default function HouseHuntingTracker() {
   );
 }
 
-function ListingDetail({ listing, onClose, onEdit, onDelete, onToggleVisited, onSetSentiment }) {
+function ListingDetail({ listing, onClose, onEdit, onDelete, onToggleVisited, onSetSentiment, pins = [], drivingDistances = {} }) {
   return (
     <div className="w-96 bg-white border-l border-gray-200 overflow-y-auto">
       <div className="p-4 border-b border-gray-200 flex items-center justify-between">
@@ -602,6 +787,40 @@ function ListingDetail({ listing, onClose, onEdit, onDelete, onToggleVisited, on
           <div className="bg-gray-50 rounded-lg p-3">
             <div className="text-xs text-gray-500 uppercase tracking-wide">Square Feet</div>
             <div className="text-lg font-semibold text-gray-900">{listing.sqft?.toLocaleString()}</div>
+          </div>
+        )}
+
+        {/* Driving Distances to Frequently Visited Places */}
+        {pins.length > 0 && Object.keys(drivingDistances).length > 0 && (
+          <div className="border-t pt-4">
+            <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+              <Star className="w-4 h-4 text-amber-500" />
+              Driving Distances
+            </h4>
+            <div className="space-y-2">
+              {pins.map(pin => {
+                const distance = drivingDistances[pin.id];
+                if (distance === undefined) return null;
+
+                return (
+                  <div key={pin.id} className="flex items-center justify-between bg-amber-50 rounded-lg p-3">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-amber-600" />
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">{pin.label}</div>
+                        {pin.address && (
+                          <div className="text-xs text-gray-500">{pin.address}</div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-lg font-bold text-amber-700">{distance}</div>
+                      <div className="text-xs text-gray-500">mi</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 
@@ -1255,6 +1474,203 @@ function ListView({ listings, onEdit, onDelete, onToggleVisited, onSetSentiment 
               ))}
             </tbody>
           </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PinsModal({ onClose, pins, onAddPin, onEditPin, onDeletePin }) {
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [editingPinId, setEditingPinId] = useState(null);
+  const [formData, setFormData] = useState({
+    label: '',
+    address: '',
+    lat: '',
+    lng: ''
+  });
+  const [isGeocoding, setIsGeocoding] = useState(false);
+
+  const resetForm = () => {
+    setFormData({ label: '', address: '', lat: '', lng: '' });
+    setEditingPinId(null);
+    setShowAddForm(false);
+  };
+
+  const handleEdit = (pin) => {
+    setFormData({
+      label: pin.label,
+      address: pin.address || '',
+      lat: pin.lat || '',
+      lng: pin.lng || ''
+    });
+    setEditingPinId(pin.id);
+    setShowAddForm(true);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsGeocoding(true);
+
+    let lat = formData.lat ? parseFloat(formData.lat) : null;
+    let lng = formData.lng ? parseFloat(formData.lng) : null;
+
+    // If no coordinates provided, try to geocode the address
+    if ((!lat || !lng) && formData.address) {
+      const coords = await geocodeAddress(formData.address + ', San Francisco, CA');
+      if (coords) {
+        lat = coords.lat;
+        lng = coords.lng;
+      }
+    }
+
+    const pinData = {
+      label: formData.label,
+      address: formData.address,
+      lat,
+      lng
+    };
+
+    if (editingPinId) {
+      onEditPin(editingPinId, pinData);
+    } else {
+      await onAddPin(pinData);
+    }
+
+    setIsGeocoding(false);
+    resetForm();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
+      <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-auto">
+        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            <Star className="w-5 h-5 text-amber-500" />
+            Frequently Visited Places
+          </h2>
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+
+        <div className="p-4">
+          {/* List of existing pins */}
+          {pins.length > 0 && (
+            <div className="mb-4 space-y-2">
+              {pins.map(pin => (
+                <div key={pin.id} className="flex items-center justify-between bg-amber-50 rounded-lg p-3 border border-amber-100">
+                  <div className="flex items-center gap-3">
+                    <MapPin className="w-5 h-5 text-amber-600" />
+                    <div>
+                      <div className="font-medium text-gray-900">{pin.label}</div>
+                      {pin.address && (
+                        <div className="text-sm text-gray-500">{pin.address}</div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleEdit(pin)}
+                      className="p-1.5 hover:bg-amber-100 rounded text-amber-700"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDeletePin(pin.id)}
+                      className="p-1.5 hover:bg-red-100 rounded text-red-600"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Add/Edit Form */}
+          {showAddForm ? (
+            <form onSubmit={handleSubmit} className="space-y-4 border-t pt-4">
+              <h3 className="text-sm font-semibold text-gray-700">
+                {editingPinId ? 'Edit Pin' : 'Add New Pin'}
+              </h3>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Label *</label>
+                <input
+                  type="text"
+                  required
+                  value={formData.label}
+                  onChange={e => setFormData(prev => ({ ...prev, label: e.target.value }))}
+                  placeholder="Office, Gym, etc."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                <input
+                  type="text"
+                  value={formData.address}
+                  onChange={e => setFormData(prev => ({ ...prev, address: e.target.value }))}
+                  placeholder="123 Main St, San Francisco, CA"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">We'll try to geocode this automatically</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Latitude</label>
+                  <input
+                    type="text"
+                    value={formData.lat}
+                    onChange={e => setFormData(prev => ({ ...prev, lat: e.target.value }))}
+                    placeholder="37.7749"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Longitude</label>
+                  <input
+                    type="text"
+                    value={formData.lng}
+                    onChange={e => setFormData(prev => ({ ...prev, lng: e.target.value }))}
+                    placeholder="-122.4194"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="submit"
+                  disabled={isGeocoding}
+                  className="flex-1 bg-amber-500 text-white py-2 rounded-lg font-medium hover:bg-amber-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                >
+                  {isGeocoding ? 'Saving...' : editingPinId ? 'Update Pin' : 'Add Pin'}
+                </button>
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="px-4 py-2 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowAddForm(true)}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-amber-300 rounded-lg text-amber-700 hover:bg-amber-50 font-medium"
+            >
+              <Plus className="w-5 h-5" />
+              Add New Pin
+            </button>
+          )}
         </div>
       </div>
     </div>
