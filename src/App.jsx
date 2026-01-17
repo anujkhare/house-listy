@@ -291,12 +291,21 @@ export default function HouseHuntingTracker() {
   }, [listings, showVisitedOnly, mapReady]);
 
   const handleAddListing = async (formData) => {
-    const coords = await geocodeAddress(formData.address + ', San Francisco, CA');
+    // Use manual coordinates if provided, otherwise geocode
+    let lat = formData.lat || null;
+    let lng = formData.lng || null;
+
+    if (!lat || !lng) {
+      const coords = await geocodeAddress(formData.address + ', San Francisco, CA');
+      lat = coords?.lat || null;
+      lng = coords?.lng || null;
+    }
+
     const newListing = {
       id: Date.now().toString(),
       ...formData,
-      lat: coords?.lat || null,
-      lng: coords?.lng || null,
+      lat,
+      lng,
       visited: false,
       sentiment: null, // null, 'liked', or 'disliked'
       createdAt: new Date().toISOString(),
@@ -1273,11 +1282,14 @@ function AddListingModal({ onClose, onAdd }) {
     totalSpaces: '',
     garageSpaces: '',
     homeType: '',
-    yearBuilt: ''
+    yearBuilt: '',
+    lat: '',
+    lng: ''
   });
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
   const [fetchError, setFetchError] = useState(null);
+  const [showManualCoords, setShowManualCoords] = useState(false);
 
   // Listen for data from Chrome extension
   useEffect(() => {
@@ -1368,6 +1380,10 @@ function AddListingModal({ onClose, onAdd }) {
     const taxAssessedValueNum = formData.taxAssessedValue ? parseInt(formData.taxAssessedValue.replace(/[^0-9]/g, '')) : null;
     const annualTaxAmountNum = formData.annualTaxAmount ? parseInt(formData.annualTaxAmount.replace(/[^0-9]/g, '')) : null;
 
+    // Parse manual coordinates if provided
+    const manualLat = formData.lat ? parseFloat(formData.lat) : null;
+    const manualLng = formData.lng ? parseFloat(formData.lng) : null;
+
     await onAdd({
       ...formData,
       price: priceNum || null,
@@ -1380,6 +1396,8 @@ function AddListingModal({ onClose, onAdd }) {
       totalSpaces: formData.totalSpaces ? parseInt(formData.totalSpaces) : null,
       garageSpaces: formData.garageSpaces ? parseInt(formData.garageSpaces) : null,
       yearBuilt: formData.yearBuilt ? parseInt(formData.yearBuilt) : null,
+      lat: manualLat,
+      lng: manualLng,
     });
     setIsGeocoding(false);
   };
@@ -1506,6 +1524,51 @@ function AddListingModal({ onClose, onAdd }) {
               rows={3}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
+          </div>
+
+          {/* Manual Coordinates Section */}
+          <div className="border-t pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-700">Map Coordinates</h3>
+              <button
+                type="button"
+                onClick={() => setShowManualCoords(!showManualCoords)}
+                className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+              >
+                {showManualCoords ? 'Hide' : 'Add manually'}
+              </button>
+            </div>
+            {showManualCoords && (
+              <div>
+                <p className="text-xs text-gray-500 mb-3">
+                  If geocoding fails, you can manually enter coordinates from Google Maps. Right-click on the location and copy the coordinates.
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Latitude</label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={formData.lat}
+                      onChange={e => setFormData(prev => ({ ...prev, lat: e.target.value }))}
+                      placeholder="37.7749"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Longitude</label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={formData.lng}
+                      onChange={e => setFormData(prev => ({ ...prev, lng: e.target.value }))}
+                      placeholder="-122.4194"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Additional Fields Section */}
@@ -1672,6 +1735,8 @@ function EditListingModal({ listing, onClose, onSave, onDelete }) {
     beds: listing.beds?.toString() || '',
     baths: listing.baths?.toString() || '',
     sqft: listing.sqft?.toString() || '',
+    lat: listing.lat?.toString() || '',
+    lng: listing.lng?.toString() || '',
     likes: listing.likes || [],
     dislikes: listing.dislikes || [],
     dealBreakers: listing.dealBreakers || []
@@ -1679,19 +1744,26 @@ function EditListingModal({ listing, onClose, onSave, onDelete }) {
   const [newLike, setNewLike] = useState('');
   const [newDislike, setNewDislike] = useState('');
   const [newDealBreaker, setNewDealBreaker] = useState('');
+  const [showManualCoords, setShowManualCoords] = useState(false);
 
   const handleSubmit = (e) => {
     e.preventDefault();
     const priceNum = parseInt(formData.price.replace(/[^0-9]/g, ''));
     const sqftNum = parseInt(formData.sqft.replace(/[^0-9]/g, ''));
-    
+
+    // Parse manual coordinates if provided
+    const lat = formData.lat ? parseFloat(formData.lat) : null;
+    const lng = formData.lng ? parseFloat(formData.lng) : null;
+
     onSave({
       ...formData,
       price: priceNum || null,
       beds: parseInt(formData.beds) || null,
       baths: parseFloat(formData.baths) || null,
       sqft: sqftNum || null,
-      pricePerSqft: priceNum && sqftNum ? Math.round(priceNum / sqftNum) : null
+      pricePerSqft: priceNum && sqftNum ? Math.round(priceNum / sqftNum) : null,
+      lat,
+      lng
     });
   };
 
@@ -1889,6 +1961,51 @@ function EditListingModal({ listing, onClose, onSave, onDelete }) {
               rows={3}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
+          </div>
+
+          {/* Manual Coordinates Section */}
+          <div className="border-t pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-700">Map Coordinates</h3>
+              <button
+                type="button"
+                onClick={() => setShowManualCoords(!showManualCoords)}
+                className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+              >
+                {showManualCoords ? 'Hide' : 'Edit coordinates'}
+              </button>
+            </div>
+            {showManualCoords && (
+              <div>
+                <p className="text-xs text-gray-500 mb-3">
+                  You can manually update coordinates from Google Maps. Right-click on the location and copy the coordinates.
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Latitude</label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={formData.lat}
+                      onChange={e => setFormData(prev => ({ ...prev, lat: e.target.value }))}
+                      placeholder="37.7749"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Longitude</label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={formData.lng}
+                      onChange={e => setFormData(prev => ({ ...prev, lng: e.target.value }))}
+                      placeholder="-122.4194"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex gap-3 pt-2">
