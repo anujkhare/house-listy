@@ -157,6 +157,7 @@ If you see `⚠️ No Firebase configuration found` in your Railway logs, please
 **→ [RAILWAY-FIREBASE-TROUBLESHOOTING.md](RAILWAY-FIREBASE-TROUBLESHOOTING.md)**
 
 This guide covers:
+
 - How to check if environment variables are set correctly
 - Common JSON formatting issues
 - How to verify Firebase is working
